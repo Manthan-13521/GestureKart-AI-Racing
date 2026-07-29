@@ -4,6 +4,23 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Virtual Steering</title>
+  <script>
+    window.onerror = function(msg, url, line, col, error) {
+      var el = document.getElementById('error-display');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'error-display';
+        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
+        document.body.prepend(el);
+      }
+      el.textContent = 'ERROR: ' + (error ? error.stack || error.message : msg);
+      el.style.display = 'block';
+      return false;
+    };
+    window.addEventListener('unhandledrejection', function(e) {
+      window.onerror(e.reason ? e.reason.message || e.reason : 'Unhandled Promise rejection');
+    });
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
