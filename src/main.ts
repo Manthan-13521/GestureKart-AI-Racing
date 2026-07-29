@@ -203,20 +203,10 @@ function drawHandSkeleton(data: HandData): void {
 
   const lm = data.landmarks[0];
 
-  ctx.shadowColor = 'rgba(0, 255, 65, 0.5)';
-  ctx.shadowBlur = 10;
-
   for (const [i, j] of HAND_CONNECTIONS) {
     if (i < lm.length && j < lm.length) {
-      ctx.strokeStyle = 'rgba(0, 255, 65, 0.15)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(lm[i].x * w, lm[i].y * h);
-      ctx.lineTo(lm[j].x * w, lm[j].y * h);
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(150, 255, 200, 0.5)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(0, 255, 65, 0.3)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(lm[i].x * w, lm[i].y * h);
       ctx.lineTo(lm[j].x * w, lm[j].y * h);
@@ -225,34 +215,21 @@ function drawHandSkeleton(data: HandData): void {
   }
 
   for (const p of lm) {
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = 'rgba(0, 255, 65, 0.25)';
+    ctx.fillStyle = 'rgba(0, 255, 65, 0.5)';
     ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.shadowBlur = 4;
-    ctx.fillStyle = 'rgba(150, 255, 200, 0.5)';
-    ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, 1.5, 0, Math.PI * 2);
+    ctx.arc(p.x * w, p.y * h, 2, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  ctx.shadowBlur = 12;
   for (const tipIdx of [4, 8, 12, 16, 20]) {
     if (tipIdx < lm.length) {
       const p = lm[tipIdx];
-      ctx.fillStyle = 'rgba(0, 255, 65, 0.7)';
+      ctx.fillStyle = 'rgba(0, 255, 65, 0.8)';
       ctx.beginPath();
       ctx.arc(p.x * w, p.y * h, 3, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = 'rgba(200, 255, 220, 0.9)';
-      ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, 1.5, 0, Math.PI * 2);
-      ctx.fill();
     }
   }
-  ctx.shadowBlur = 0;
 }
 
 // ─── Steering UI update ────────────────────────────────────────────
@@ -799,47 +776,27 @@ function drawSpeedLines(speed: number, steerX: number): void {
   const intensity = Math.max(0, (speed - 0.3) / 2.5);
   if (intensity <= 0) return;
 
-  const numLines = Math.floor(intensity * 45);
+  const numLines = Math.floor(intensity * 20);
   speedLineOffset += speed * 0.4;
+  const steerOffset = (steerX - 0.5) * 0.2;
 
-  const steerOffset = (steerX - 0.5) * 0.3;
-
+  ctx.strokeStyle = `rgba(120, 160, 200, ${intensity * 0.3})`;
+  ctx.lineWidth = 1;
   for (let i = 0; i < numLines; i++) {
     const seed = (i * 7919 + 31) % 1000 / 1000;
-    const seed2 = (i * 6271 + 17) % 1000 / 1000;
     const angle = seed * Math.PI * 2 + steerOffset;
-    const startR = (seed2 * 0.15 + 0.25) * Math.min(w, h) * 0.5;
-    const len = 40 + intensity * 120 + seed * 60;
-    const offset = (speedLineOffset * (0.5 + seed * 0.5) + seed * 80) % (startR + len);
-
+    const r = 0.2 + seed * 0.3;
+    const startR = r * Math.min(w, h) * 0.5;
+    const len = 30 + intensity * 80;
+    const offset = (speedLineOffset * (0.5 + seed * 0.5) + seed * 60) % (startR + len);
     const x1 = w / 2 + Math.cos(angle) * offset;
     const y1 = h / 2 + Math.sin(angle) * offset;
     const x2 = w / 2 + Math.cos(angle) * (offset + len);
     const y2 = h / 2 + Math.sin(angle) * (offset + len);
-
-    const alpha = Math.max(0, 1 - offset / (startR + len)) * intensity * 0.4;
-    const hue = 200 + seed * 40;
-    ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${alpha})`;
-    ctx.lineWidth = 1 + seed * 2;
-
-    ctx.globalAlpha = Math.max(0, 1 - offset / (startR + len));
+    ctx.globalAlpha = Math.max(0, 1 - offset / (startR + len)) * intensity * 0.5;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < Math.floor(intensity * 8); i++) {
-    const seed = (i * 5557 + 13) % 1000 / 1000;
-    const x = w * (0.1 + seed * 0.8);
-    const y = h * (0.1 + seed * 0.8);
-    const l = 20 + intensity * 60;
-    ctx.globalAlpha = intensity * 0.15 * (1 - seed * 0.5);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + steerOffset * l * 0.5, y - l);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
