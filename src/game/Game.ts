@@ -211,28 +211,21 @@ export class Game {
     const hemi = new THREE.HemisphereLight(0x223344, 0x111122, 0.3);
     this.scene.add(hemi);
 
-    this.headlight1 = new THREE.SpotLight(0xffeebb, 8, 80, Math.PI / 6, 0.5, 1);
+    this.headlight1 = new THREE.SpotLight(0xffeebb, 10, 80, Math.PI / 6, 0.5, 1);
     this.headlight1.position.set(-1.5, 1.8, -2);
     this.headlight1.target.position.set(-1.5, 0, -20);
-    this.headlight1.castShadow = !this.mobile;
     this.scene.add(this.headlight1);
     this.scene.add(this.headlight1.target);
 
-    this.headlight2 = new THREE.SpotLight(0xffeebb, 8, 80, Math.PI / 6, 0.5, 1);
+    this.headlight2 = new THREE.SpotLight(0xffeebb, 10, 80, Math.PI / 6, 0.5, 1);
     this.headlight2.position.set(1.5, 1.8, -2);
     this.headlight2.target.position.set(1.5, 0, -20);
-    this.headlight2.castShadow = !this.mobile;
     this.scene.add(this.headlight2);
     this.scene.add(this.headlight2.target);
 
-    const mainLight = new THREE.DirectionalLight(0x446688, 0.8);
+    const mainLight = new THREE.DirectionalLight(0x446688, 1.2);
     mainLight.position.set(0, 10, -10);
-    mainLight.castShadow = !this.mobile;
     this.scene.add(mainLight);
-
-    const rimLight = new THREE.DirectionalLight(0x223344, 0.5);
-    rimLight.position.set(-5, 3, -10);
-    this.scene.add(rimLight);
   }
 
   private buildRoad(): void {
@@ -308,6 +301,17 @@ export class Game {
     l2.position.set(2.5, TUNNEL_H - 0.04, 0);
     g.add(l2);
 
+    const panelMat = new THREE.MeshBasicMaterial({ color: 0x7788aa });
+    for (let i = -1; i <= 1; i++) {
+      const panel = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.0, 1.5),
+        panelMat,
+      );
+      panel.position.set(0, TUNNEL_H - 0.01, i * (SEG_LEN / 3));
+      panel.rotation.x = -Math.PI / 2;
+      g.add(panel);
+    }
+
     const edgeMat = new THREE.MeshBasicMaterial({ color: 0x888888 });
     const edgeGeo = new THREE.PlaneGeometry(0.12, SEG_LEN);
     for (const ex of [-ROAD_W / 2, ROAD_W / 2]) {
@@ -328,15 +332,6 @@ export class Game {
         dash.rotation.x = -Math.PI / 2;
         dash.position.set(lx, 0.01, d + 1.5);
         g.add(dash);
-      }
-    }
-
-    if (!this.mobile) {
-      for (let i = 0; i < 3; i++) {
-        const lightZ = (i - 1) * (SEG_LEN / 3);
-        const overhead = new THREE.PointLight(0xffeedd, 2.5, 18);
-        overhead.position.set(0, TUNNEL_H - 0.5, lightZ);
-        g.add(overhead);
       }
     }
 

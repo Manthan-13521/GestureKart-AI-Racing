@@ -5,21 +5,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Virtual Steering</title>
   <script>
-    window.onerror = function(msg, url, line, col, error) {
-      var el = document.getElementById('error-display');
-      if (!el) {
-        el = document.createElement('div');
-        el.id = 'error-display';
-        el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
-        document.body.prepend(el);
+    (function() {
+      var displayError = function(msg) {
+        var el = document.getElementById('error-display');
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'error-display';
+          el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
+          document.body.prepend(el);
+        }
+        el.textContent = 'ERROR: ' + msg;
+        el.style.display = 'block';
+      };
+      window.addEventListener('error', function(e) {
+        var msg = e.error ? e.error.stack || e.error.message : e.message;
+        displayError(msg);
+        return true;
+      });
+      window.addEventListener('unhandledrejection', function(e) {
+        var msg = e.reason ? e.reason.stack || e.reason.message || e.reason : 'Unhandled Promise rejection';
+        displayError(msg);
+      });
+
+      // Check WebGL support
+      try {
+        var c = document.createElement('canvas');
+        var gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+        if (!gl) displayError('WebGL not supported by this browser');
+      } catch(e) {
+        displayError('WebGL check failed: ' + e.message);
       }
-      el.textContent = 'ERROR: ' + (error ? error.stack || error.message : msg);
-      el.style.display = 'block';
-      return false;
-    };
-    window.addEventListener('unhandledrejection', function(e) {
-      window.onerror(e.reason ? e.reason.message || e.reason : 'Unhandled Promise rejection');
-    });
+    })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -804,7 +804,10 @@ function drawSpeedLines(speed: number, steerX: number): void {
 
 // ─── Init ──────────────────────────────────────────────────────────
 async function init(): Promise<void> {
-  game = new Game(gameCanvas);
+  const gc = document.getElementById('game') as HTMLCanvasElement;
+  if (!gc) throw new Error('Canvas #game not found');
+
+  game = new Game(gc);
   handleResize();
   window.addEventListener('resize', handleResize);
 
@@ -970,4 +973,15 @@ async function init(): Promise<void> {
   gameLoop();
 }
 
-init();
+init().catch((err: unknown) => {
+  const msg = err instanceof Error ? err.stack || err.message : String(err);
+  const el = document.getElementById('error-display') || (() => {
+    const d = document.createElement('div');
+    d.id = 'error-display';
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
+    document.body.prepend(d);
+    return d;
+  })();
+  el.textContent = 'ERROR: ' + msg;
+  el.style.display = 'block';
+});
