@@ -960,11 +960,16 @@ async function init(): Promise<void> {
   // ─── Landing page controls ────────────────────────────────────
   landingPlay.addEventListener('click', () => {
     landing.classList.remove('visible');
-    document.getElementById('menu-overlay')!.classList.add('visible');
-    document.getElementById('howtoplay-overlay')!.classList.remove('visible');
-    document.getElementById('settings-overlay')!.classList.remove('visible');
     document.getElementById('game-overlay')!.classList.remove('visible');
     document.getElementById('game-over-overlay')!.classList.remove('visible');
+    autoAccelerate = true;
+    if (game) game.setHandData(0.5, 2);
+    startCountdown(() => {
+      game.start();
+      document.getElementById('menu-overlay')!.classList.remove('visible');
+      document.getElementById('howtoplay-overlay')!.classList.remove('visible');
+      document.getElementById('settings-overlay')!.classList.remove('visible');
+    });
   });
 
   landingSettings.addEventListener('click', () => {
