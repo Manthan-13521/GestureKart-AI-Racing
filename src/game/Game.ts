@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SmoothFilter } from '../utils/smoothing';
 import type { Landmark } from '../input/HandTracker';
 
@@ -32,6 +35,8 @@ export class Game {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private composer!: EffectComposer;
+  private bloomPass!: UnrealBloomPass;
 
   private segments: THREE.Group[] = [];
   private obstacles: THREE.Group[] = [];
@@ -65,6 +70,13 @@ export class Game {
 
   private handSkeleton: Landmark[] = [];
   private cockpitGroup: THREE.Group;
+  private wheelGroup!: THREE.Group;
+  private wheelAngle = 0;
+
+  private particles!: THREE.Points;
+  private particlePositions!: Float32Array;
+
+  private baseFov = FOV;
 
   constructor(private canvas: HTMLCanvasElement) {
     this.scene = new THREE.Scene();
@@ -81,11 +93,15 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.4;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
+    this.setupComposer(w, h);
     this.setupLights();
     this.buildRoad();
     this.buildSegments();
     this.cockpitGroup = this.buildCockpit();
+    this.setupParticles();
     this.lastFrameTime = performance.now();
   }
 
@@ -96,17 +112,14 @@ export class Game {
   get justCollided(): boolean { return this._justCollided; }
   get speed(): number { return this._speed; }
 
-  // Progressive difficulty: 0 → 1 over 60s of race time
   private get difficulty(): number {
     return Math.min(1, this.raceTime / 60);
   }
 
-  // Max speed starts low (2.0), ramps up to 4.5
   private get maxSpeed(): number {
     return 2.0 + this.difficulty * 2.5;
   }
 
-  // Spawn interval decreases over time (120 → 30 frames)
   private get spawnInterval(): number {
     return 120 - this.difficulty * 90;
   }
@@ -131,6 +144,15 @@ export class Game {
 
   getSpeedKmh(): number {
     return Math.floor(this._speed * 120);
+  }
+
+  getGear(): number {
+    const kmh = this.getSpeedKmh();
+    if (kmh < 30) return 1;
+    if (kmh < 70) return 2;
+    if (kmh < 110) return 3;
+    if (kmh < 160) return 4;
+    return 5;
   }
 
   setHandData(centerX: number, handsDetected: number): void {
@@ -164,6 +186,8 @@ export class Game {
     this.smoothSteer.reset(0);
     this.shakeIntensity = 0;
     this._justCollided = false;
+    this.camera.fov = this.baseFov;
+    this.camera.updateProjectionMatrix();
     for (const c of this.obstacles) this.scene.remove(c);
     this.obstacles = [];
     this.spawnCar();
@@ -171,40 +195,60 @@ export class Game {
     this.spawnCar();
   }
 
-  private setupLights(): void {
-    this.scene.add(new THREE.AmbientLight(0x6688aa, 1.8));
+  private setupComposer(w: number, h: number): void {
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(w, h),
+      0.2, 0.5, 0.1,
+    );
+    this.composer.addPass(this.bloomPass);
+  }
 
-    this.headlight1 = new THREE.PointLight(0xffeedd, 10, 100);
+  private setupLights(): void {
+    const ambient = new THREE.AmbientLight(0x6688aa, 1.0);
+    this.scene.add(ambient);
+
+    const hemi = new THREE.HemisphereLight(0x88aacc, 0x445566, 0.6);
+    this.scene.add(hemi);
+
+    this.headlight1 = new THREE.PointLight(0xffeedd, 15, 100);
     this.headlight1.position.set(-2, 2.5, -7);
+    this.headlight1.castShadow = true;
     this.scene.add(this.headlight1);
 
-    this.headlight2 = new THREE.PointLight(0xffeedd, 10, 100);
+    this.headlight2 = new THREE.PointLight(0xffeedd, 15, 100);
     this.headlight2.position.set(2, 2.5, -7);
+    this.headlight2.castShadow = true;
     this.scene.add(this.headlight2);
 
-    const spot = new THREE.SpotLight(0xffffff, 3, 150, Math.PI / 5, 0.4);
+    const spot = new THREE.SpotLight(0xffffff, 5, 150, Math.PI / 5, 0.4);
     spot.position.set(0, 8, 8);
     spot.target.position.set(0, 0, -40);
+    spot.castShadow = true;
     this.scene.add(spot);
     this.scene.add(spot.target);
 
-    this.scene.add(new THREE.HemisphereLight(0x88aacc, 0x445566, 0.8));
-
-    const fill = new THREE.PointLight(0x4488cc, 4, 60);
+    const fill = new THREE.PointLight(0x4488cc, 6, 60);
     fill.position.set(0, 4, -20);
     this.scene.add(fill);
+
+    const rimLight = new THREE.DirectionalLight(0x4488ff, 1.5);
+    rimLight.position.set(10, 5, -20);
+    this.scene.add(rimLight);
   }
 
   private buildRoad(): void {
     const geo = new THREE.PlaneGeometry(ROAD_W, 600);
     const mat = new THREE.MeshStandardMaterial({
-      color: 0x3a3c40,
-      roughness: 0.7,
-      metalness: 0.1,
+      color: 0x181a20,
+      roughness: 0.2,
+      metalness: 0.35,
     });
     const road = new THREE.Mesh(geo, mat);
     road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0, -300);
+    road.position.set(0, -0.02, -300);
+    road.receiveShadow = true;
     this.scene.add(road);
   }
 
@@ -212,27 +256,29 @@ export class Game {
     const g = new THREE.Group();
     g.position.z = z;
 
-    // Walls — slightly brighter
     const wallMat = new THREE.MeshStandardMaterial({
-      color: 0x4a4e55,
-      roughness: 0.8,
-      metalness: 0.15,
+      color: 0x3a3e45,
+      roughness: 0.6,
+      metalness: 0.2,
     });
     const wallGeo = new THREE.BoxGeometry(0.6, TUNNEL_H, SEG_LEN);
 
     const lw = new THREE.Mesh(wallGeo, wallMat);
     lw.position.set(-TUNNEL_W / 2 - 0.3, TUNNEL_H / 2, 0);
+    lw.castShadow = true;
+    lw.receiveShadow = true;
     g.add(lw);
 
     const rw = new THREE.Mesh(wallGeo, wallMat);
     rw.position.set(TUNNEL_W / 2 + 0.3, TUNNEL_H / 2, 0);
+    rw.castShadow = true;
+    rw.receiveShadow = true;
     g.add(rw);
 
-    // Ceiling
     const ceilMat = new THREE.MeshStandardMaterial({
-      color: 0x3e4248,
-      roughness: 0.7,
-      metalness: 0.1,
+      color: 0x2e3238,
+      roughness: 0.5,
+      metalness: 0.15,
     });
     const ceil = new THREE.Mesh(
       new THREE.PlaneGeometry(TUNNEL_W + 1.2, SEG_LEN),
@@ -240,9 +286,9 @@ export class Game {
     );
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, TUNNEL_H, 0);
+    ceil.receiveShadow = true;
     g.add(ceil);
 
-    // Neon strip lights on walls (red)
     const neonMat = new THREE.MeshBasicMaterial({ color: 0xff1a1a });
     const neonGeo = new THREE.BoxGeometry(0.08, 0.12, SEG_LEN);
     for (const side of [-1, 1]) {
@@ -251,7 +297,6 @@ export class Game {
       g.add(neon);
     }
 
-    // Neon strip on ceiling (blue)
     const ceilNeonMat = new THREE.MeshBasicMaterial({ color: 0x00aaff });
     const ceilNeon = new THREE.Mesh(
       new THREE.BoxGeometry(TUNNEL_W * 0.6, 0.06, 0.15),
@@ -260,7 +305,6 @@ export class Game {
     ceilNeon.position.set(0, TUNNEL_H - 0.04, 0);
     g.add(ceilNeon);
 
-    // Barrier strips at road edges
     const barMat = new THREE.MeshStandardMaterial({
       color: 0x882222,
       roughness: 0.5,
@@ -273,12 +317,12 @@ export class Game {
         barMat,
       );
       bar.position.set(side * (ROAD_W / 2 + 0.5), 0.25, 0);
+      bar.receiveShadow = true;
       g.add(bar);
     }
 
-    // Tunnel lights (brighter, warmer)
     const lMat = new THREE.MeshBasicMaterial({ color: 0xffdd88 });
-    const lGeo = new THREE.BoxGeometry(0.5, 0.08, 14);
+    const lGeo = new THREE.BoxGeometry(0.6, 0.08, 14);
     const l1 = new THREE.Mesh(lGeo, lMat);
     l1.position.set(-2.5, TUNNEL_H - 0.04, 0);
     g.add(l1);
@@ -286,11 +330,10 @@ export class Game {
     l2.position.set(2.5, TUNNEL_H - 0.04, 0);
     g.add(l2);
 
-    // Red direction arrows on walls (brighter)
     const arrowMat = new THREE.MeshBasicMaterial({
       color: 0xff3333,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.5,
     });
     for (const side of [-1, 1]) {
       for (let dz = -8; dz <= 8; dz += 8) {
@@ -308,18 +351,25 @@ export class Game {
       }
     }
 
-    // Lane edge markings (bright white)
-    const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const edgeMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.2,
+    });
     const edgeGeo = new THREE.PlaneGeometry(0.15, SEG_LEN);
     for (const ex of [-ROAD_W / 2, ROAD_W / 2]) {
       const e = new THREE.Mesh(edgeGeo, edgeMat);
       e.rotation.x = -Math.PI / 2;
       e.position.set(ex, 0.02, 0);
+      e.receiveShadow = true;
       g.add(e);
     }
 
-    // Dashed center lines
-    const dashMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee });
+    const dashMat = new THREE.MeshStandardMaterial({
+      color: 0xeeeeee,
+      emissive: 0xeeeeee,
+      emissiveIntensity: 0.15,
+    });
     for (let lane = 0; lane < 2; lane++) {
       const lx = LANE_X[lane] + 1.65;
       for (let d = -SEG_LEN / 2; d < SEG_LEN / 2; d += 7) {
@@ -329,6 +379,7 @@ export class Game {
         );
         dash.rotation.x = -Math.PI / 2;
         dash.position.set(lx, 0.02, d + 1.75);
+        dash.receiveShadow = true;
         g.add(dash);
       }
     }
@@ -346,23 +397,22 @@ export class Game {
   private buildCockpit(): THREE.Group {
     const g = new THREE.Group();
 
-    // Car hood — dark but visible
     const hoodMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2838,
-      roughness: 0.3,
-      metalness: 0.7,
+      color: 0x141a24,
+      roughness: 0.25,
+      metalness: 0.8,
     });
     const hood = new THREE.Mesh(
       new THREE.BoxGeometry(2.2, 0.12, 2.0),
       hoodMat,
     );
     hood.position.set(0, 0.06, -1.5);
+    hood.receiveShadow = true;
     g.add(hood);
 
-    // Dashboard panel — minimal
     const dashMat = new THREE.MeshStandardMaterial({
-      color: 0x0e1218,
-      roughness: 0.6,
+      color: 0x0a0e14,
+      roughness: 0.5,
       metalness: 0.3,
     });
     const dash = new THREE.Mesh(
@@ -372,32 +422,53 @@ export class Game {
     dash.position.set(0, 0.5, -0.9);
     g.add(dash);
 
-    // Dashboard screen — green glow
     const screenMat = new THREE.MeshBasicMaterial({ color: 0x00ff41 });
     const screen = new THREE.Mesh(
       new THREE.PlaneGeometry(1.0, 0.15),
       screenMat,
     );
-    screen.position.set(0, 0.58, -0.68);
+    screen.position.set(0, 0.6, -0.68);
     g.add(screen);
 
-    // Steering wheel — small, subtle
+    this.wheelGroup = new THREE.Group();
+
     const wheelMat = new THREE.MeshStandardMaterial({
-      color: 0x1a1a22,
-      roughness: 0.4,
+      color: 0x0e0e16,
+      roughness: 0.3,
+      metalness: 0.7,
+    });
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.04, 14, 28), wheelMat);
+    rim.rotation.x = 0.5;
+    this.wheelGroup.add(rim);
+
+    const spokeMat = new THREE.MeshStandardMaterial({
+      color: 0x18182a,
+      roughness: 0.35,
+      metalness: 0.6,
+    });
+    for (let i = 0; i < 3; i++) {
+      const angle = (i / 3) * Math.PI * 2;
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.55), spokeMat);
+      spoke.position.set(Math.sin(angle) * 0.15, Math.cos(angle) * 0.15, 0);
+      spoke.rotation.z = angle;
+      this.wheelGroup.add(spoke);
+    }
+
+    const hubMat = new THREE.MeshStandardMaterial({
+      color: 0x222238,
+      roughness: 0.3,
       metalness: 0.5,
     });
-    const wheel = new THREE.Mesh(
-      new THREE.TorusGeometry(0.35, 0.04, 10, 20),
-      wheelMat,
-    );
-    wheel.position.set(0, 0.8, -0.6);
-    wheel.rotation.x = 0.5;
-    g.add(wheel);
+    const hub = new THREE.Mesh(new THREE.CircleGeometry(0.08, 12), hubMat);
+    hub.rotation.x = 0.5;
+    this.wheelGroup.add(hub);
 
-    // Side pillars — thin
+    this.wheelGroup.position.set(0, 0.8, -0.6);
+    this.wheelGroup.rotation.x = 0.5;
+    g.add(this.wheelGroup);
+
     const pillarMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0c10,
+      color: 0x080a10,
       roughness: 0.3,
       metalness: 0.6,
     });
@@ -414,6 +485,49 @@ export class Game {
     return g;
   }
 
+  private setupParticles(): void {
+    const count = 250;
+    const positions = new Float32Array(count * 3);
+    const sizes = new Float32Array(count);
+    for (let i = 0; i < count; i++) {
+      positions[i * 3] = (Math.random() - 0.5) * 24;
+      positions[i * 3 + 1] = Math.random() * 5;
+      positions[i * 3 + 2] = -Math.random() * 250;
+      sizes[i] = 0.04 + Math.random() * 0.1;
+    }
+    this.particlePositions = positions;
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const mat = new THREE.PointsMaterial({
+      color: 0xaaccff,
+      size: 0.12,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      sizeAttenuation: true,
+    });
+    this.particles = new THREE.Points(geo, mat);
+    this.scene.add(this.particles);
+  }
+
+  private updateParticles(dt: number): void {
+    const pos = this.particlePositions;
+    const moveSpeed = this._speed * 0.6 * dt;
+    for (let i = 0; i < pos.length / 3; i++) {
+      pos[i * 3 + 2] += moveSpeed;
+      if (pos[i * 3 + 2] > 15) {
+        pos[i * 3] = (Math.random() - 0.5) * 24;
+        pos[i * 3 + 1] = Math.random() * 5;
+        pos[i * 3 + 2] = -Math.random() * 250;
+        pos[i * 3] += this.smoothSteer.getValue() * 2;
+      }
+    }
+    this.particles.geometry.attributes.position.needsUpdate = true;
+  }
+
   private spawnCar(): void {
     const g = new THREE.Group();
     const colors = [
@@ -422,30 +536,30 @@ export class Game {
     ];
     const color = colors[Math.floor(Math.random() * colors.length)];
 
-    // Car body — emissive for visibility
     const bodyMat = new THREE.MeshStandardMaterial({
       color,
-      roughness: 0.3,
-      metalness: 0.4,
+      roughness: 0.25,
+      metalness: 0.5,
       emissive: color,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.3,
     });
     const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.9, 4.0), bodyMat);
     body.position.y = 0.55;
     body.position.z = -0.1;
+    body.castShadow = true;
+    body.receiveShadow = true;
     g.add(body);
 
-    // Cabin
     const cabinMat = new THREE.MeshStandardMaterial({
-      color: 0x111122,
+      color: 0x0e0e1e,
       roughness: 0.2,
       metalness: 0.6,
     });
     const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.65, 1.8), cabinMat);
     cabin.position.set(0, 1.3, 0.4);
+    cabin.castShadow = true;
     g.add(cabin);
 
-    // Tail lights — bright red glow
     const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
     for (const side of [-0.7, 0.7]) {
       const tl = new THREE.Mesh(
@@ -455,11 +569,10 @@ export class Game {
       tl.position.set(side, 0.65, 2.02);
       g.add(tl);
     }
-    const tailGlow = new THREE.PointLight(0xff2200, 2, 10);
+    const tailGlow = new THREE.PointLight(0xff2200, 3, 12);
     tailGlow.position.set(0, 0.65, 2.2);
     g.add(tailGlow);
 
-    // Headlights — bright white/yellow
     const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
     for (const side of [-0.7, 0.7]) {
       const hl = new THREE.Mesh(
@@ -469,12 +582,11 @@ export class Game {
       hl.position.set(side, 0.55, -2.02);
       g.add(hl);
     }
-    const hlGlow = new THREE.PointLight(0xffffdd, 4, 20);
+    const hlGlow = new THREE.PointLight(0xffffdd, 5, 25);
     hlGlow.position.set(0, 0.55, -2.3);
     g.add(hlGlow);
 
-    // Underbody glow
-    const underGlow = new THREE.PointLight(color, 1.5, 6);
+    const underGlow = new THREE.PointLight(color, 2, 8);
     underGlow.position.set(0, 0.1, 0);
     g.add(underGlow);
 
@@ -492,7 +604,6 @@ export class Game {
     this.lastFrameTime = now;
     const delta = dt / 60;
 
-    // Speed
     if (this._handsDetected >= 2) {
       this._speed = Math.min(this.maxSpeed, this._speed + 0.004 * dt);
       this.score += this._speed * 2 * dt;
@@ -501,12 +612,10 @@ export class Game {
       this._speed = Math.max(0.05, this._speed - 0.007 * dt);
     }
 
-    // Game over after 90 seconds
     if (this.raceTime >= RACE_DURATION) {
       this._gameOver = true;
     }
 
-    // Position
     this.position = Math.max(
       1,
       Math.min(
@@ -515,7 +624,6 @@ export class Game {
       ),
     );
 
-    // Steering — smooth with non-linear curve for precision
     const rawSteer = (this.centerX - 0.5) * 2 * this.sensitivity;
     const deadZone = 0.02;
     let steerInput = Math.abs(rawSteer) < deadZone ? 0 : (rawSteer > 0 ? (rawSteer - deadZone) / (1 - deadZone) : (rawSteer + deadZone) / (1 - deadZone));
@@ -524,7 +632,6 @@ export class Game {
     this.cameraX = this.smoothSteer.update(targetX);
     this.cameraX = Math.max(-4, Math.min(4, this.cameraX));
 
-    // Camera shake decay
     this._justCollided = false;
     if (this.shakeIntensity > 0.01) {
       this.shakeIntensity *= 0.9;
@@ -540,14 +647,19 @@ export class Game {
     this.camera.position.y = CAM_Y + shakeY;
     this.camera.rotation.z = this.cameraX * -0.025 + rollExtra;
 
-    // Cockpit follows camera — car body stays with the driver view
+    const fovBoost = this._speed * 2.5;
+    this.camera.fov = this.baseFov + fovBoost;
+    this.camera.updateProjectionMatrix();
+
+    const wheelTargetRot = -this.cameraX * 0.18;
+    this.wheelAngle += (wheelTargetRot - this.wheelAngle) * 0.12;
+    this.wheelGroup.rotation.z = this.wheelAngle;
+
     this.cockpitGroup.position.x = this.cameraX;
 
-    // Headlights follow
     this.headlight1.position.x = this.cameraX - 2.5;
     this.headlight2.position.x = this.cameraX + 2.5;
 
-    // Move tunnel segments
     const moveAmount = this._speed * dt;
     for (const seg of this.segments) {
       seg.position.z += moveAmount;
@@ -556,7 +668,6 @@ export class Game {
       }
     }
 
-    // Spawn obstacles
     this.spawnTimer += dt;
     const interval = Math.max(18, this.spawnInterval - this._speed * 30);
     if (this.spawnTimer >= interval && this._handsDetected >= 2 && this.raceTime > 3) {
@@ -564,7 +675,6 @@ export class Game {
       this.spawnCar();
     }
 
-    // Move obstacles and check collision
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const car = this.obstacles[i];
       car.position.z += moveAmount;
@@ -580,18 +690,28 @@ export class Game {
       if (dx < 1.5 && dz < 2.5) {
         this._gameOver = true;
         this._justCollided = true;
-        this.shakeIntensity = 2.0;
+        this.shakeIntensity = 2.8;
+        this.camera.fov = this.baseFov + 12;
+        this.camera.updateProjectionMatrix();
       }
+    }
+
+    this.updateParticles(dt);
+
+    if (this.bloomPass) {
+      const targetBloom = 0.12 + this._speed * 0.08;
+      this.bloomPass.strength += (targetBloom - this.bloomPass.strength) * 0.05;
     }
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
   }
 
   resize(w: number, h: number): void {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer.setSize(w, h);
   }
 }

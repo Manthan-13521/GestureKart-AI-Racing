@@ -46,6 +46,7 @@ const hudLap = document.getElementById('hud-lap')!;
 const hudTime = document.getElementById('hud-time')!;
 const hudBest = document.getElementById('hud-best')!;
 const hudSpeed = document.getElementById('hud-speed')!;
+const hudGear = document.getElementById('hud-gear')!;
 const speedArc = document.getElementById('speed-arc')!;
 
 const countdownOverlay = document.getElementById('countdown-overlay')!;
@@ -88,6 +89,8 @@ let gyroTilt = 0;
 let audioCtx: AudioContext | null = null;
 let engineOsc: OscillatorNode | null = null;
 let engineGain: GainNode | null = null;
+let subOsc: OscillatorNode | null = null;
+let subGain: GainNode | null = null;
 let engineRunning = false;
 
 // Countdown
@@ -200,10 +203,20 @@ function drawHandSkeleton(data: HandData): void {
 
   const lm = data.landmarks[0];
 
+  ctx.shadowColor = 'rgba(0, 255, 65, 0.5)';
+  ctx.shadowBlur = 10;
+
   for (const [i, j] of HAND_CONNECTIONS) {
     if (i < lm.length && j < lm.length) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(0, 255, 65, 0.15)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(lm[i].x * w, lm[i].y * h);
+      ctx.lineTo(lm[j].x * w, lm[j].y * h);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(150, 255, 200, 0.5)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(lm[i].x * w, lm[i].y * h);
       ctx.lineTo(lm[j].x * w, lm[j].y * h);
@@ -212,21 +225,34 @@ function drawHandSkeleton(data: HandData): void {
   }
 
   for (const p of lm) {
-    ctx.fillStyle = 'rgba(0, 255, 65, 0.3)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(0, 255, 65, 0.25)';
+    ctx.beginPath();
+    ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = 'rgba(150, 255, 200, 0.5)';
     ctx.beginPath();
     ctx.arc(p.x * w, p.y * h, 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
+  ctx.shadowBlur = 12;
   for (const tipIdx of [4, 8, 12, 16, 20]) {
     if (tipIdx < lm.length) {
       const p = lm[tipIdx];
-      ctx.fillStyle = 'rgba(0, 255, 65, 0.6)';
+      ctx.fillStyle = 'rgba(0, 255, 65, 0.7)';
       ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, 2.5, 0, Math.PI * 2);
+      ctx.arc(p.x * w, p.y * h, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(200, 255, 220, 0.9)';
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
   }
+  ctx.shadowBlur = 0;
 }
 
 // ─── Steering UI update ────────────────────────────────────────────
@@ -332,6 +358,16 @@ function updateGameHUD(state: GameState): void {
       speedArc.setAttribute('stroke', 'var(--green)');
     }
   }
+
+  // Gear
+  const gear = game ? game.getGear() : 1;
+  hudGear.textContent = `${gear}`;
+  const prevGear = hudGear.getAttribute('data-prev') || '1';
+  if (prevGear !== `${gear}`) {
+    hudGear.className = 'hud-gear-val shift';
+    setTimeout(() => hudGear.classList.remove('shift'), 200);
+  }
+  hudGear.setAttribute('data-prev', `${gear}`);
 }
 
 // ─── Status update ─────────────────────────────────────────────────
@@ -519,8 +555,8 @@ function gameLoop(): void {
 
     // Juice: speed lines + vignette
     if (state.started && !state.gameOver) {
-      drawSpeedLines(state.speed);
-      speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.5) / 2.5) * 0.8}`;
+      drawSpeedLines(state.speed, game.steerCenterX);
+      speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.3) / 2.5) * 0.8}`;
       updateEngineSound(state.speed);
     } else {
       stopEngineSound();
@@ -689,25 +725,40 @@ function initAudio(): void {
   if (audioCtx) return;
   try {
     audioCtx = new AudioContext();
-    engineOsc = audioCtx.createOscillator();
     engineGain = audioCtx.createGain();
+    engineGain.gain.value = 0;
+    engineGain.connect(audioCtx.destination);
+
+    engineOsc = audioCtx.createOscillator();
     engineOsc.type = 'sawtooth';
     engineOsc.frequency.value = 60;
-    engineGain.gain.value = 0;
     engineOsc.connect(engineGain);
-    engineGain.connect(audioCtx.destination);
     engineOsc.start();
+
+    subGain = audioCtx.createGain();
+    subGain.gain.value = 0;
+    subGain.connect(audioCtx.destination);
+
+    subOsc = audioCtx.createOscillator();
+    subOsc.type = 'sine';
+    subOsc.frequency.value = 30;
+    subOsc.connect(subGain);
+    subOsc.start();
+
     engineRunning = true;
   } catch { /* audio not available */ }
 }
 
 function updateEngineSound(speed: number): void {
-  if (!engineOsc || !engineGain || !audioCtx) return;
+  if (!engineOsc || !engineGain || !subOsc || !subGain || !audioCtx) return;
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const freq = 60 + speed * 80;
   const vol = speed > 0.1 ? 0.04 + speed * 0.02 : 0;
+  const subVol = speed > 0.1 ? 0.06 + speed * 0.015 : 0;
   engineOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
   engineGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.1);
+  subOsc.frequency.setTargetAtTime(freq * 0.5, audioCtx.currentTime, 0.15);
+  subGain.gain.setTargetAtTime(subVol, audioCtx.currentTime, 0.15);
 }
 
 function playCollisionSound(): void {
@@ -729,12 +780,15 @@ function stopEngineSound(): void {
   if (engineGain && audioCtx) {
     engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
   }
+  if (subGain && audioCtx) {
+    subGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
+  }
 }
 
 // ─── Speed Lines ───────────────────────────────────────────────────
 let speedLineOffset = 0;
 
-function drawSpeedLines(speed: number): void {
+function drawSpeedLines(speed: number, steerX: number): void {
   const w = (gameOverlayCanvas.width = gameOverlayCanvas.clientWidth);
   const h = (gameOverlayCanvas.height = gameOverlayCanvas.clientHeight);
   const ctx = gameOverlayCanvas.getContext('2d');
@@ -742,32 +796,50 @@ function drawSpeedLines(speed: number): void {
 
   ctx.clearRect(0, 0, w, h);
 
-  const intensity = Math.max(0, (speed - 0.5) / 2.5);
+  const intensity = Math.max(0, (speed - 0.3) / 2.5);
   if (intensity <= 0) return;
 
-  const numLines = Math.floor(intensity * 30);
-  speedLineOffset += speed * 0.3;
+  const numLines = Math.floor(intensity * 45);
+  speedLineOffset += speed * 0.4;
 
-  ctx.strokeStyle = `rgba(255, 255, 255, ${intensity * 0.1})`;
-  ctx.lineWidth = 1;
+  const steerOffset = (steerX - 0.5) * 0.3;
 
   for (let i = 0; i < numLines; i++) {
     const seed = (i * 7919 + 31) % 1000 / 1000;
     const seed2 = (i * 6271 + 17) % 1000 / 1000;
-    const angle = seed * Math.PI * 2;
-    const startR = (seed2 * 0.2 + 0.3) * Math.min(w, h) * 0.5;
-    const len = 30 + intensity * 80 + seed * 40;
-    const offset = (speedLineOffset + seed * 100) % (startR + len);
+    const angle = seed * Math.PI * 2 + steerOffset;
+    const startR = (seed2 * 0.15 + 0.25) * Math.min(w, h) * 0.5;
+    const len = 40 + intensity * 120 + seed * 60;
+    const offset = (speedLineOffset * (0.5 + seed * 0.5) + seed * 80) % (startR + len);
 
     const x1 = w / 2 + Math.cos(angle) * offset;
     const y1 = h / 2 + Math.sin(angle) * offset;
     const x2 = w / 2 + Math.cos(angle) * (offset + len);
     const y2 = h / 2 + Math.sin(angle) * (offset + len);
 
+    const alpha = Math.max(0, 1 - offset / (startR + len)) * intensity * 0.4;
+    const hue = 200 + seed * 40;
+    ctx.strokeStyle = `hsla(${hue}, 80%, 70%, ${alpha})`;
+    ctx.lineWidth = 1 + seed * 2;
+
     ctx.globalAlpha = Math.max(0, 1 - offset / (startR + len));
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < Math.floor(intensity * 8); i++) {
+    const seed = (i * 5557 + 13) % 1000 / 1000;
+    const x = w * (0.1 + seed * 0.8);
+    const y = h * (0.1 + seed * 0.8);
+    const l = 20 + intensity * 60;
+    ctx.globalAlpha = intensity * 0.15 * (1 - seed * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + steerOffset * l * 0.5, y - l);
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
