@@ -112,7 +112,7 @@ Virtual-Steering/
 ### Installation
 
 ```bash
-git clone https://github.com/Manthan-13521/Virtual-Steering.git
+git clone https://github.com/Manthan-13521/GestureKart-AI-Racing.git
 cd Virtual-Steering
 npm install
 ```
