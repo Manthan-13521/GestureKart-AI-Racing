@@ -401,7 +401,7 @@ function startCountdown(callback: () => void): void {
       countdownOverlay.classList.add('hidden');
       callback();
     }
-  }, 800);
+  }, 250);
 }
 
 function cancelCountdown(): void {
@@ -430,6 +430,7 @@ function onKeys(newKeys: GameKeys): void {
     if (keys.up) {
       game.setHandData(game.steerCenterX, 2);
       if (!game.started || game.gameOver) {
+        if (landing.classList.contains('visible')) return;
         if (menuOverlay.classList.contains('visible')) return;
         cancelCountdown();
         startCountdown(() => {
@@ -461,18 +462,13 @@ function onHandData(data: HandData): void {
   }
 
   if (!game.started && data.handsDetected >= 2 && !countdownActive) {
-    landing.classList.remove('visible');
+    if (landing.classList.contains('visible')) return;
     if (menuOverlay.classList.contains('visible')) return;
     if (howtoplayOverlay.classList.contains('visible')) return;
     if (settingsOverlay.classList.contains('visible')) return;
-    menuOverlay.classList.add('visible');
-    document.getElementById('game-overlay')!.classList.remove('visible');
-    document.getElementById('game-over-overlay')!.classList.remove('visible');
-  }
-
-  if (game.gameOver && data.handsDetected >= 2 && !countdownActive) {
     startCountdown(() => {
       game.start();
+      document.getElementById('game-overlay')!.classList.remove('visible');
       document.getElementById('game-over-overlay')!.classList.remove('visible');
     });
   }
@@ -505,6 +501,7 @@ function gameLoop(): void {
       }
       game.setHandData(steerX, 2);
       if (!game.started) {
+        if (landing.classList.contains('visible')) return;
         if (menuOverlay.classList.contains('visible')) return;
         startCountdown(() => {
           game.start();
@@ -613,6 +610,7 @@ function setupTouchControls(): void {
       else if (touchRightHeld) steerX = 1;
       game.setHandData(steerX, 2);
       if (!game.started || game.gameOver) {
+        if (landing.classList.contains('visible')) return;
         if (menuOverlay.classList.contains('visible')) return;
         cancelCountdown();
         startCountdown(() => {
@@ -849,16 +847,14 @@ async function init(): Promise<void> {
     startOvr.classList.add('visible');
     document.getElementById('game-over-overlay')!.classList.remove('visible');
     cancelCountdown();
-    if (autoAccelerate) {
-      startCountdown(() => {
-        game.start();
-        menuOverlay.classList.remove('visible');
-        howtoplayOverlay.classList.remove('visible');
-        settingsOverlay.classList.remove('visible');
-        document.getElementById('game-overlay')!.classList.remove('visible');
-        document.getElementById('game-over-overlay')!.classList.remove('visible');
-      });
-    }
+    startCountdown(() => {
+      game.start();
+      menuOverlay.classList.remove('visible');
+      howtoplayOverlay.classList.remove('visible');
+      settingsOverlay.classList.remove('visible');
+      document.getElementById('game-overlay')!.classList.remove('visible');
+      document.getElementById('game-over-overlay')!.classList.remove('visible');
+    });
   });
 
   menuHowtoplay.addEventListener('click', () => showMenu('howtoplay'));
