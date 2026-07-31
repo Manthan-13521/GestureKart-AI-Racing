@@ -107,10 +107,10 @@ export class HandTracker {
       const lm1 = allLandmarks[1];
       const palm0 = (lm0[0].x + lm0[5].x + lm0[9].x) / 3;
       const palm1 = (lm1[0].x + lm1[5].x + lm1[9].x) / 3;
-      rawCenterX = (palm0 + palm1) / 2;
+      rawCenterX = 1 - (palm0 + palm1) / 2;
     } else if (handsDetected === 1) {
       const lm = allLandmarks[0];
-      rawCenterX = (lm[0].x + lm[5].x + lm[9].x) / 3;
+      rawCenterX = 1 - (lm[0].x + lm[5].x + lm[9].x) / 3;
     }
 
     this.smoothedX =
