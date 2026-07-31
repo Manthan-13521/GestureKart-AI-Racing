@@ -496,6 +496,10 @@ html, body {
   width: 100%; height: 100%;
 }
 
+#hand-skeleton-canvas {
+  display: none;
+}
+
 /* ================================================================
    HUD — Racing UI/UX Pattern
    Tier 1 (always visible): speed, position, lap
