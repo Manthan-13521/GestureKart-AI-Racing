@@ -549,7 +549,13 @@ function gameLoop(): void {
     const startOvr = document.getElementById('game-overlay')!;
     const gameOverOvr = document.getElementById('game-over-overlay')!;
     const finalScoreEl = document.getElementById('final-score')!;
-    if (state.started && !state.gameOver) {
+    if (landing.classList.contains('visible')) {
+      startOvr.classList.remove('visible');
+      gameOverOvr.classList.remove('visible');
+      menuOverlay.classList.remove('visible');
+      howtoplayOverlay.classList.remove('visible');
+      settingsOverlay.classList.remove('visible');
+    } else if (state.started && !state.gameOver) {
       startOvr.classList.remove('visible');
       gameOverOvr.classList.remove('visible');
       menuOverlay.classList.remove('visible');

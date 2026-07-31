@@ -758,6 +758,10 @@ html, body {
   pointer-events: auto;
 }
 
+#landing {
+  z-index: 40;
+}
+
 .overlay-content {
   text-align: center;
   display: flex;
