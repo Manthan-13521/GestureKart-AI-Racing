@@ -45,6 +45,13 @@
   --ui-accent: #57ffab;
   --ui-red: #ff6b7a;
 }
+:root[data-high-contrast='true'] .screen-title,
+:root[data-high-contrast='true'] .menu-title {
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+  color: #ffffff;
+}
 
 /* Colorblind mode — shift accent to blue/violet, gold to yellow-orange */
 :root[data-colorblind='true'] {
@@ -65,7 +72,8 @@
   .splash-orbit,
   .hero-grid,
   .card-env,
-  .menu-title-glow {
+  .menu-title-glow,
+  .aurora {
     animation: none !important;
   }
 }
@@ -119,11 +127,68 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  overflow-y: auto;
+  padding: clamp(16px, 3vh, 40px) 0;
   z-index: var(--ui-z-screen);
   background:
     radial-gradient(1200px 700px at 70% 20%, rgba(56, 189, 248, 0.08), transparent 60%),
     radial-gradient(900px 600px at 20% 80%, rgba(45, 255, 154, 0.05), transparent 55%), var(--ui-bg);
-  overflow: hidden;
+}
+
+/* Film-grain noise overlay */
+.screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Cinematic vignette */
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* Aurora light blobs */
+.aurora {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.5;
+  animation: ui-aurora-drift 22s ease-in-out infinite alternate;
+}
+.aurora--1 {
+  width: 44vw;
+  height: 44vw;
+  top: -12vw;
+  right: -8vw;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.32), transparent 65%);
+}
+.aurora--2 {
+  width: 40vw;
+  height: 40vw;
+  bottom: -14vw;
+  left: -6vw;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.16), transparent 65%);
+  animation-duration: 28s;
+  animation-delay: -6s;
+}
+@keyframes ui-aurora-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-3vw, 2vh, 0) scale(1.12);
+  }
 }
 
 .screen[aria-hidden='true'] {
@@ -262,27 +327,66 @@ body {
 .glass-card {
   position: relative;
   border-radius: var(--ui-radius);
-  background: var(--ui-surface);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), transparent 42%), var(--ui-surface);
   border: 1px solid var(--ui-border);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   overflow: hidden;
   transition:
     transform 240ms var(--ui-ease-out),
-    border-color 240ms,
-    box-shadow 240ms;
+    border-color 240ms var(--ui-ease-out),
+    box-shadow 240ms var(--ui-ease-out);
   display: flex;
   flex-direction: column;
+}
+/* Glass sheen — diagonal highlight that follows the card */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.07) 38%, transparent 56%);
+  transform: translateX(-120%);
+  transition: transform 700ms var(--ui-ease-out);
+}
+.glass-card:hover::before {
+  transform: translateX(120%);
 }
 .glass-card:hover,
 .glass-card:focus-visible {
   transform: translateY(-6px);
   border-color: var(--ui-border-bright);
-  box-shadow: var(--ui-shadow);
+  box-shadow: var(--ui-shadow), var(--ui-glow-accent);
 }
 .glass-card.is-selected {
   border-color: var(--ui-gold);
-  box-shadow: var(--ui-glow-gold);
+  box-shadow: var(--ui-glow-gold), var(--ui-shadow);
+}
+.glass-card.is-selected::before {
+  transform: translateX(120%);
+}
+/* Dim unselected siblings once a card is chosen */
+.card-grid--3:has(.glass-card.is-selected) .glass-card:not(.is-selected),
+.card-grid--4:has(.glass-card.is-selected) .glass-card:not(.is-selected) {
+  opacity: 0.45;
+  filter: saturate(0.6);
+}
+.card-grid--3 .glass-card,
+.card-grid--4 .glass-card {
+  transition:
+    opacity 240ms var(--ui-ease-out),
+    filter 240ms var(--ui-ease-out),
+    transform 240ms var(--ui-ease-out),
+    border-color 240ms var(--ui-ease-out),
+    box-shadow 240ms var(--ui-ease-out);
+}
+.card-grid--3 .glass-card:hover,
+.card-grid--4 .glass-card:hover,
+.card-grid--3 .glass-card:focus-visible,
+.card-grid--4 .glass-card:focus-visible {
+  opacity: 1;
+  filter: saturate(1);
 }
 .glass-card-preview {
   height: clamp(90px, 16vh, 150px);
@@ -370,14 +474,17 @@ body {
   .card-grid--3,
   .card-grid--4 {
     grid-template-columns: 1fr;
+    max-height: 52vh;
     overflow-y: auto;
+    padding: 4px;
+    scrollbar-width: thin;
   }
 }
 
 /* ─── Panel ──────────────────────────────────────────────── */
 .panel {
   border-radius: var(--ui-radius);
-  background: var(--ui-surface);
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.04), transparent 46%), var(--ui-surface);
   border: 1px solid var(--ui-border);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -385,6 +492,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
 }
 .panel-eyebrow {
   font-family: var(--ui-font-display);
@@ -604,7 +712,7 @@ body {
 
 .hero-grid {
   position: absolute;
-  inset: -30%;
+  inset: -60% -30%;
   z-index: 0;
   background-image:
     linear-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
@@ -615,11 +723,8 @@ body {
   pointer-events: none;
 }
 @keyframes ui-grid-drift {
-  from {
-    background-position: 0 0;
-  }
   to {
-    background-position: 0 112px;
+    transform: perspective(600px) rotateX(62deg) translate3d(0, 56px, 0);
   }
 }
 
@@ -826,7 +931,7 @@ body {
 .slider {
   -webkit-appearance: none;
   appearance: none;
-  width: min(220px, 40vw);
+  width: min(max(140px, 40vw), 220px);
   height: 6px;
   border-radius: 999px;
   background: var(--ui-surface-2);
@@ -892,4 +997,13 @@ body {
 }
 :root[data-large-hud='true'] .glass-card-title {
   font-size: 1.25em;
+}
+:root[data-large-hud='true'] .screen-title {
+  font-size: clamp(30px, 5.4vw, 52px);
+}
+:root[data-large-hud='true'] .menu-title {
+  font-size: clamp(44px, 10.5vw, 112px);
+}
+:root[data-large-hud='true'] .setting-info strong {
+  font-size: 1.15em;
 }

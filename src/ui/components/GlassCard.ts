@@ -69,6 +69,10 @@ export class GlassCard extends Component<HTMLElement> {
     }
   }
 
+  setSelected(on: boolean): void {
+    this.el.classList.toggle('is-selected', on);
+  }
+
   addMeta(meta: CardMeta): void {
     const row = document.createElement('dl');
     row.className = 'glass-card-meta';

@@ -2,7 +2,7 @@ import { Screen } from '../ui/components/Screen';
 import { Button } from '../ui/components/Button';
 import { AnimationSystem } from '../ui/core/AnimationSystem';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
-import { spawnParticles, spawnGrid } from './ambient';
+import { spawnParticles, spawnGrid, spawnAurora } from './ambient';
 
 /**
  * Cinematic main menu: animated title glow, ambient grid + particles,
@@ -25,6 +25,7 @@ export class MainMenuScreen extends Screen {
   protected build(_params: Record<string, unknown>): void {
     const { bestScore } = this;
     spawnGrid(this.el);
+    spawnAurora(this.el);
     spawnParticles(this.el);
 
     const wrap = document.createElement('div');

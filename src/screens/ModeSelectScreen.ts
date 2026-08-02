@@ -112,6 +112,8 @@ export class ModeSelectScreen extends Screen {
         focusable: true,
         onClick: () => {
           SoundHooks.confirm();
+          for (const other of cards) other.setSelected(false);
+          card.setSelected(true);
           this.onSelect?.(mode.id);
         },
       });
@@ -128,7 +130,7 @@ export class ModeSelectScreen extends Screen {
       card.addSlot(icons);
       card.addMeta({ label: 'Est. Duration', value: mode.duration });
       card.setDescription(mode.description);
-      if (selected === mode.id) card.el.classList.add('is-selected');
+      if (selected === mode.id) card.setSelected(true);
       grid.appendChild(card.el);
       return card;
     });

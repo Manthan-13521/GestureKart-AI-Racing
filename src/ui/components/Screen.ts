@@ -32,6 +32,7 @@ export abstract class Screen extends Component<HTMLElement> {
     this.params = params;
     this.build(params);
     this.el.setAttribute('aria-hidden', 'false');
+    this.focusFirst();
   }
 
   /** Called by NavigationSystem after enter animation completes. */
@@ -40,6 +41,20 @@ export abstract class Screen extends Component<HTMLElement> {
   /** Called when navigation returns to an existing screen instance. */
   screenWake(_params: Record<string, unknown>): void {
     this.el.setAttribute('aria-hidden', 'false');
+    this.focusFirst();
+  }
+
+  /** Move focus into the screen so keyboard users land on usable content. */
+  private focusFirst(): void {
+    const target = this.el.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (target) {
+      target.focus({ preventScroll: true });
+      return;
+    }
+    this.el.tabIndex = -1;
+    this.el.focus({ preventScroll: true });
   }
 
   getTransition(): TransitionKind {

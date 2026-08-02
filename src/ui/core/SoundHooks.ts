@@ -51,6 +51,25 @@ export class SoundHooks {
     SoundHooks.tone(180, 0.15, 0.06, 'square');
   }
 
+  /** Soft tick used by the race countdown (3-2-1). */
+  static countdownTick(): void {
+    SoundHooks.tone(520, 0.06, 0.045, 'square');
+  }
+
+  /** Rising chime for GO / race start. */
+  static raceStart(): void {
+    SoundHooks.tone(523, 0.08, 0.05, 'sine');
+    setTimeout(() => SoundHooks.tone(784, 0.08, 0.05, 'sine'), 90);
+    setTimeout(() => SoundHooks.tone(1046, 0.16, 0.055, 'sine'), 180);
+  }
+
+  /** Descending fanfare for race finished. */
+  static raceFinish(): void {
+    SoundHooks.tone(1046, 0.1, 0.05, 'sine');
+    setTimeout(() => SoundHooks.tone(784, 0.1, 0.05, 'sine'), 110);
+    setTimeout(() => SoundHooks.tone(523, 0.24, 0.05, 'sine'), 220);
+  }
+
   /** Attach hover/press feedback to a button element. */
   static attach(btn: HTMLElement): void {
     btn.addEventListener('pointerenter', () => SoundHooks.hover());

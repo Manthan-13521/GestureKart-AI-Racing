@@ -392,6 +392,7 @@ stateMachine.onChange((_from, to) => {
     const score = Math.floor(game.getState().score);
     ui.finalScore.textContent = `${score}`;
     saveManager.setBestScore(score);
+    SoundHooks.raceFinish();
   }
 });
 
@@ -402,6 +403,7 @@ function startCountdown(callback: () => void): void {
   ui.countdown.classList.remove('hidden');
   ui.countdownNum.textContent = '3';
   ui.countdownNum.className = 'countdown-num';
+  SoundHooks.countdownTick();
 
   // Reset animation
   ui.countdownNum.style.animation = 'none';
@@ -417,12 +419,14 @@ function startCountdown(callback: () => void): void {
       ui.countdownNum.style.animation = 'none';
       void ui.countdownNum.offsetHeight;
       ui.countdownNum.style.animation = '';
+      SoundHooks.countdownTick();
     } else if (step === 0) {
       ui.countdownNum.textContent = 'GO';
       ui.countdownNum.className = 'countdown-num go';
       ui.countdownNum.style.animation = 'none';
       void ui.countdownNum.offsetHeight;
       ui.countdownNum.style.animation = '';
+      SoundHooks.raceStart();
     } else {
       clearInterval(countdownInterval!);
       countdownInterval = null;
@@ -783,7 +787,10 @@ async function init(): Promise<void> {
       notify.success('Calibration', 'Hold your hands in the center for 2 seconds');
       setTimeout(() => notify.success('Calibration saved'), 2000);
     },
-    onBack: () => void nav.go('menu', {}, { transition: 'slide-right' }),
+    onBack: () => {
+      notify.success('Settings', 'Saved');
+      void nav.go('menu', {}, { transition: 'slide-right' });
+    },
   };
 
   const startRace = (trackId: TrackId, modeId: ModeId): void => {
@@ -832,6 +839,13 @@ async function init(): Promise<void> {
     void nav.reset('menu');
   });
   navTitle.style.cursor = 'pointer';
+
+  const navSettingsBtn = document.getElementById('btn-settings') as HTMLElement;
+  SoundHooks.attach(navTitle);
+  SoundHooks.attach(navSettingsBtn);
+  navSettingsBtn.addEventListener('click', () => {
+    if (!uiRoot.hidden) void nav.go('settings');
+  });
 
   if (!resources.externalHandsReady() || !resources.externalCameraUtilsReady()) {
     throw new Error(
