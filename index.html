@@ -55,18 +55,8 @@
     ></script>
   </head>
   <body>
-    <!-- ─── Landing Page ─── -->
-    <div class="game-overlay visible" id="landing">
-      <div class="menu-content">
-        <div class="menu-badge">&#9673;</div>
-        <div class="menu-title">VIRTUAL STEERING</div>
-        <div class="menu-sub">HAND-GESTURE RACING</div>
-        <div class="menu-divider"></div>
-        <button class="menu-btn menu-btn-primary" id="landing-play">PLAY</button>
-        <button class="menu-btn menu-btn-secondary" id="landing-settings">SETTINGS</button>
-        <button class="menu-btn menu-btn-secondary" id="landing-learn">HOW TO PLAY</button>
-      </div>
-    </div>
+    <!-- ─── UI Framework Root (Splash / Loading / Menu / Track / Mode / Settings) ─── -->
+    <div id="ui-root" hidden></div>
 
     <!-- ─── Nav Bar ─── -->
     <header class="nav">
@@ -334,105 +324,7 @@
             </div>
           </div>
 
-          <!-- ─── Main Menu Overlay ─── -->
-          <div class="game-overlay" id="menu-overlay">
-            <div class="menu-content">
-              <div class="menu-badge">&#9673;</div>
-              <div class="menu-title">VIRTUAL STEERING</div>
-              <div class="menu-sub">HAND-GESTURE RACING</div>
-              <div class="menu-divider"></div>
-              <button class="menu-btn menu-btn-primary" id="menu-start">START RACE</button>
-              <button class="menu-btn menu-btn-secondary" id="menu-howtoplay">HOW TO PLAY</button>
-              <button class="menu-btn menu-btn-secondary" id="menu-settings">SETTINGS</button>
-              <div class="menu-controls-hint">
-                <span><kbd>W</kbd> Gas</span>
-                <span><kbd>A</kbd> <kbd>D</kbd> Steer</span>
-                <span><kbd>U</kbd> Auto</span>
-                <span>Show both hands to drive</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- ─── How To Play Overlay ─── -->
-          <div class="game-overlay" id="howtoplay-overlay">
-            <div class="menu-content">
-              <div
-                class="menu-title"
-                style="
-                  font-size: 22px;
-                  -webkit-text-fill-color: var(--blue);
-                  background: none;
-                  color: var(--blue);
-                "
-              >
-                HOW TO PLAY
-              </div>
-              <div class="htp-grid">
-                <div class="htp-item">
-                  <span class="htp-icon">&#9995;&#9995;</span>
-                  <span class="htp-label">Show both hands</span>
-                  <span class="htp-desc">Car accelerates automatically when both hands are detected</span>
-                </div>
-                <div class="htp-item">
-                  <span class="htp-icon">&#9756;&#65039; &#9758;&#65039;</span>
-                  <span class="htp-label">Steer with hands</span>
-                  <span class="htp-desc">Move both hands left or right to steer. Center = straight</span>
-                </div>
-                <div class="htp-item">
-                  <span class="htp-icon">&#9000;&#65039;</span>
-                  <span class="htp-label">Keyboard fallback</span>
-                  <span class="htp-desc"
-                    ><kbd>W</kbd> accelerate, <kbd>A</kbd> left, <kbd>D</kbd> right,
-                    <kbd>U</kbd> auto-accelerate</span
-                  >
-                </div>
-                <div class="htp-item">
-                  <span class="htp-icon">&#128196;</span>
-                  <span class="htp-label">Avoid obstacles</span>
-                  <span class="htp-desc">Dodge other cars on the road. Collisions end the race!</span>
-                </div>
-              </div>
-              <button class="menu-btn menu-btn-primary" id="htp-back" style="margin-top: 16px">BACK</button>
-            </div>
-          </div>
-
-          <!-- ─── Settings Overlay ─── -->
-          <div class="game-overlay" id="settings-overlay">
-            <div class="menu-content">
-              <div
-                class="menu-title"
-                style="
-                  font-size: 22px;
-                  -webkit-text-fill-color: var(--gold);
-                  background: none;
-                  color: var(--gold);
-                "
-              >
-                SETTINGS
-              </div>
-              <div class="settings-group">
-                <div class="settings-row">
-                  <span class="settings-label">SENSITIVITY</span>
-                  <input
-                    type="range"
-                    id="menu-sensitivity-slider"
-                    min="10"
-                    max="100"
-                    value="75"
-                    class="settings-slider"
-                  />
-                  <span class="settings-val" id="menu-sensitivity-value">75%</span>
-                </div>
-                <div class="settings-row">
-                  <span class="settings-label">AUTO ACCELERATE</span>
-                  <button class="settings-toggle" id="menu-auto-toggle">OFF</button>
-                </div>
-              </div>
-              <button class="menu-btn menu-btn-primary" id="settings-back" style="margin-top: 16px">
-                BACK
-              </button>
-            </div>
-          </div>
+          <!-- ─── Menu / HowToPlay / Settings overlays replaced by UI framework screens ─── -->
 
           <!-- ─── Countdown Overlay ─── -->
           <div class="countdown-overlay hidden" id="countdown-overlay">
