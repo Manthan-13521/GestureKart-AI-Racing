@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { SmoothFilter } from '../utils/smoothing';
 import type { Landmark } from '../input/HandTracker';
+import { SceneManager, type SceneOptions } from '../managers/SceneManager';
+import type { ResourceManager } from '../managers/ResourceManager';
 
 const SEG_LEN = 24;
 const NUM_SEG = 18;
@@ -11,10 +13,6 @@ const TUNNEL_H = 5;
 const FOV = 78;
 const CAM_Y = 1.3;
 const RACE_DURATION = 90;
-
-function isMobile(): boolean {
-  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 768;
-}
 
 export interface GameState {
   speed: number;
@@ -33,9 +31,7 @@ export interface GameState {
 }
 
 export class Game {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
+  private scenes: SceneManager;
   private mobile: boolean;
 
   private segments: THREE.Group[] = [];
@@ -81,29 +77,11 @@ export class Game {
 
   private baseFov = FOV;
 
-  constructor(private canvas: HTMLCanvasElement) {
-    this.mobile = isMobile();
+  constructor(private canvas: HTMLCanvasElement, resources: ResourceManager) {
+    this.mobile = resources.device.isMobile;
 
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x050709);
-    this.scene.fog = new THREE.Fog(0x050709, 40, 200);
-
-    const w = canvas.clientWidth || 800;
-    const h = canvas.clientHeight || 600;
-    this.camera = new THREE.PerspectiveCamera(FOV, w / h, 0.1, 300);
-    this.camera.position.set(0, CAM_Y, 0);
-
-    this.renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: !this.mobile,
-      powerPreference: this.mobile ? 'low-power' : 'high-performance',
-    });
-    this.renderer.setSize(w, h);
-    this.renderer.setPixelRatio(this.mobile ? 1 : Math.min(window.devicePixelRatio, 2));
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
-    this.renderer.shadowMap.enabled = !this.mobile;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    const sceneOptions: SceneOptions = { mobile: this.mobile, fov: FOV, camY: CAM_Y };
+    this.scenes = new SceneManager(canvas, sceneOptions, resources);
 
     this.setupLights();
     this.buildRoad();
@@ -112,6 +90,18 @@ export class Game {
     this.setupMirror();
     this.setupParticles();
     this.lastFrameTime = performance.now();
+  }
+
+  private get scene(): THREE.Scene {
+    return this.scenes.scene;
+  }
+
+  private get camera(): THREE.PerspectiveCamera {
+    return this.scenes.camera;
+  }
+
+  private get renderer(): THREE.WebGLRenderer {
+    return this.scenes.renderer;
   }
 
   get gameOver(): boolean { return this._gameOver; }
@@ -748,8 +738,10 @@ export class Game {
   }
 
   resize(w: number, h: number): void {
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.scenes.resize(w, h);
+  }
+
+  dispose(): void {
+    this.scenes.dispose();
   }
 }
