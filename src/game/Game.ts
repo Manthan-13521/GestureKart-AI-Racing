@@ -3,6 +3,8 @@ import { SmoothFilter } from '../utils/smoothing';
 import type { Landmark } from '../input/HandTracker';
 import { SceneManager, type SceneOptions } from '../managers/SceneManager';
 import type { ResourceManager } from '../managers/ResourceManager';
+import { ParticlePool } from '../graphics/ParticlePool';
+import { WeatherSystem } from '../graphics/WeatherSystem';
 
 const SEG_LEN = 24;
 const NUM_SEG = 18;
@@ -80,6 +82,11 @@ export class Game {
   private particles!: THREE.Points;
   private particlePositions!: Float32Array;
 
+  // Phase 6: GPU particle pool + weather
+  private particlePool!: ParticlePool;
+  private weatherSystem!: WeatherSystem;
+  private ambientLight!: THREE.AmbientLight;
+
   private baseFov = FOV;
 
   constructor(
@@ -97,6 +104,12 @@ export class Game {
     this.cockpitGroup = this.buildCockpit();
     this.setupMirror();
     this.setupParticles();
+
+    // Phase 6 — GPU particle pool replaces/supplements legacy particles
+    this.particlePool = new ParticlePool(this.scene);
+    // WeatherSystem needs the ambient light created in setupLights()
+    this.weatherSystem = new WeatherSystem(this.scene, this.ambientLight);
+
     this.lastFrameTime = performance.now();
   }
 
@@ -248,8 +261,8 @@ export class Game {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0x1a2030, 0.6);
-    this.scene.add(ambient);
+    this.ambientLight = new THREE.AmbientLight(0x1a2030, 0.6);
+    this.scene.add(this.ambientLight);
 
     const hemi = new THREE.HemisphereLight(0x223344, 0x111122, 0.3);
     this.scene.add(hemi);
@@ -740,6 +753,13 @@ export class Game {
 
     this.updateParticles(dt);
     this.updateMirror();
+
+    // Phase 6: GPU particle pool + weather (reuse moveAmount from above)
+    if (this._justCollided) {
+      this.particlePool.emitSparks(this._cameraX);
+    }
+    this.particlePool.update(dt / 60, this._speed, this._cameraX, moveAmount);
+    this.weatherSystem.update(dt / 60, this._speed, moveAmount);
   }
 
   render(): void {
@@ -751,6 +771,8 @@ export class Game {
   }
 
   dispose(): void {
+    this.particlePool.dispose();
+    this.weatherSystem.dispose();
     this.scenes.dispose();
   }
 }
