@@ -77,7 +77,10 @@ export class Game {
 
   private baseFov = FOV;
 
-  constructor(private canvas: HTMLCanvasElement, resources: ResourceManager) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    resources: ResourceManager
+  ) {
     this.mobile = resources.device.isMobile;
 
     const sceneOptions: SceneOptions = { mobile: this.mobile, fov: FOV, camY: CAM_Y };
@@ -104,12 +107,24 @@ export class Game {
     return this.scenes.renderer;
   }
 
-  get gameOver(): boolean { return this._gameOver; }
-  get started(): boolean { return this._started; }
-  get handsDetected(): number { return this._handsDetected; }
-  get steerCenterX(): number { return this.centerX; }
-  get justCollided(): boolean { return this._justCollided; }
-  get speed(): number { return this._speed; }
+  get gameOver(): boolean {
+    return this._gameOver;
+  }
+  get started(): boolean {
+    return this._started;
+  }
+  get handsDetected(): number {
+    return this._handsDetected;
+  }
+  get steerCenterX(): number {
+    return this.centerX;
+  }
+  get justCollided(): boolean {
+    return this._justCollided;
+  }
+  get speed(): number {
+    return this._speed;
+  }
 
   private get difficulty(): number {
     return Math.min(1, this.raceTime / 60);
@@ -248,10 +263,7 @@ export class Game {
     g.add(rw);
 
     const ceilMat = new THREE.MeshBasicMaterial({ color: 0x141618 });
-    const ceil = new THREE.Mesh(
-      new THREE.PlaneGeometry(TUNNEL_W + 1, SEG_LEN),
-      ceilMat,
-    );
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(TUNNEL_W + 1, SEG_LEN), ceilMat);
     ceil.rotation.x = Math.PI / 2;
     ceil.position.set(0, TUNNEL_H, 0);
     g.add(ceil);
@@ -265,19 +277,13 @@ export class Game {
     }
 
     const ceilNeonMat = new THREE.MeshBasicMaterial({ color: 0x0066cc });
-    const ceilNeon = new THREE.Mesh(
-      new THREE.BoxGeometry(TUNNEL_W * 0.5, 0.04, 0.1),
-      ceilNeonMat,
-    );
+    const ceilNeon = new THREE.Mesh(new THREE.BoxGeometry(TUNNEL_W * 0.5, 0.04, 0.1), ceilNeonMat);
     ceilNeon.position.set(0, TUNNEL_H - 0.03, 0);
     g.add(ceilNeon);
 
     const barMat = new THREE.MeshBasicMaterial({ color: 0x442222 });
     for (const side of [-1, 1]) {
-      const bar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.25, 0.4, SEG_LEN),
-        barMat,
-      );
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.4, SEG_LEN), barMat);
       bar.position.set(side * (ROAD_W / 2 + 0.4), 0.2, 0);
       g.add(bar);
     }
@@ -293,10 +299,7 @@ export class Game {
 
     const panelMat = new THREE.MeshBasicMaterial({ color: 0x7788aa });
     for (let i = -1; i <= 1; i++) {
-      const panel = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.0, 1.5),
-        panelMat,
-      );
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 1.5), panelMat);
       panel.position.set(0, TUNNEL_H - 0.01, i * (SEG_LEN / 3));
       panel.rotation.x = -Math.PI / 2;
       g.add(panel);
@@ -315,10 +318,7 @@ export class Game {
     for (let lane = 0; lane < 2; lane++) {
       const lx = LANE_X[lane] + 1.65;
       for (let d = -SEG_LEN / 2; d < SEG_LEN / 2; d += 7) {
-        const dash = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.12, 3.0),
-          dashMat,
-        );
+        const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 3.0), dashMat);
         dash.rotation.x = -Math.PI / 2;
         dash.position.set(lx, 0.01, d + 1.5);
         g.add(dash);
@@ -342,22 +342,19 @@ export class Game {
 
     const hood = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, 0.1, 2.2),
-      new THREE.MeshStandardMaterial({ color: 0x0e1015, roughness: 0.3, metalness: 0.6 }),
+      new THREE.MeshStandardMaterial({ color: 0x0e1015, roughness: 0.3, metalness: 0.6 })
     );
     hood.position.set(0, 0.05, -1.6);
     hood.receiveShadow = true;
     g.add(hood);
 
-    const dash = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6, 0.35, 0.5),
-      bodyMat,
-    );
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.35, 0.5), bodyMat);
     dash.position.set(0, 0.48, -0.85);
     g.add(dash);
 
     const dashTop = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, 0.08, 0.5),
-      new THREE.MeshStandardMaterial({ color: 0x181c24, roughness: 0.4, metalness: 0.3 }),
+      new THREE.MeshStandardMaterial({ color: 0x181c24, roughness: 0.4, metalness: 0.3 })
     );
     dashTop.position.set(0, 0.67, -0.85);
     g.add(dashTop);
@@ -366,23 +363,17 @@ export class Game {
     const gaugeRimMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
 
     for (const gx of [-0.5, 0.5]) {
-      const gauge = new THREE.Mesh(
-        new THREE.CircleGeometry(0.09, 16),
-        gaugeMat,
-      );
+      const gauge = new THREE.Mesh(new THREE.CircleGeometry(0.09, 16), gaugeMat);
       gauge.position.set(gx, 0.58, -0.59);
       g.add(gauge);
 
-      const rim = new THREE.Mesh(
-        new THREE.RingGeometry(0.085, 0.1, 16),
-        gaugeRimMat,
-      );
+      const rim = new THREE.Mesh(new THREE.RingGeometry(0.085, 0.1, 16), gaugeRimMat);
       rim.position.set(gx, 0.58, -0.588);
       g.add(rim);
 
       const needle = new THREE.Mesh(
         new THREE.PlaneGeometry(0.003, 0.07),
-        new THREE.MeshBasicMaterial({ color: 0xff3333 }),
+        new THREE.MeshBasicMaterial({ color: 0xff3333 })
       );
       needle.position.set(gx, 0.6, -0.587);
       needle.rotation.z = -0.3 + Math.random() * 0.6;
@@ -391,7 +382,7 @@ export class Game {
 
     const speedoLabel = new THREE.Mesh(
       new THREE.PlaneGeometry(0.18, 0.04),
-      new THREE.MeshBasicMaterial({ color: 0x00ff41 }),
+      new THREE.MeshBasicMaterial({ color: 0x00ff41 })
     );
     speedoLabel.position.set(0, 0.54, -0.58);
     g.add(speedoLabel);
@@ -418,7 +409,7 @@ export class Game {
 
     const hub = new THREE.Mesh(
       new THREE.CircleGeometry(0.07, 10),
-      new THREE.MeshBasicMaterial({ color: 0x222238 }),
+      new THREE.MeshBasicMaterial({ color: 0x222238 })
     );
     hub.rotation.x = 0.5;
     this.wheelGroup.add(hub);
@@ -428,10 +419,7 @@ export class Game {
     g.add(this.wheelGroup);
 
     for (const side of [-1, 1]) {
-      const pillar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08, 0.9, 0.08),
-        bodyMat,
-      );
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), bodyMat);
       pillar.position.set(side * 1.35, 1.35, -0.5);
       pillar.rotation.z = side * 0.15;
       g.add(pillar);
@@ -442,33 +430,24 @@ export class Game {
       transparent: true,
       opacity: 0.15,
     });
-    const windshield = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.4, 0.9),
-      windshieldMat,
-    );
+    const windshield = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.9), windshieldMat);
     windshield.position.set(0, 1.1, -0.85);
     g.add(windshield);
 
     for (const side of [-1, 1]) {
       const mirrorGroup = new THREE.Group();
 
-      const arm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.04, 0.04, 0.3),
-        bodyMat,
-      );
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.3), bodyMat);
       arm.position.set(0, 0, 0.15);
       mirrorGroup.add(arm);
 
-      const mirrorBack = new THREE.Mesh(
-        new THREE.BoxGeometry(0.25, 0.18, 0.04),
-        bodyMat,
-      );
+      const mirrorBack = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.18, 0.04), bodyMat);
       mirrorBack.position.set(0, 0, 0.32);
       mirrorGroup.add(mirrorBack);
 
       const mirrorFace = new THREE.Mesh(
         new THREE.PlaneGeometry(0.22, 0.15),
-        new THREE.MeshBasicMaterial({ color: 0x334455 }),
+        new THREE.MeshBasicMaterial({ color: 0x334455 })
       );
       mirrorFace.position.set(0, 0, 0.34);
       mirrorGroup.add(mirrorFace);
@@ -478,16 +457,13 @@ export class Game {
       g.add(mirrorGroup);
     }
 
-    const rearMirror = new THREE.Mesh(
-      new THREE.BoxGeometry(0.3, 0.12, 0.03),
-      bodyMat,
-    );
+    const rearMirror = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.03), bodyMat);
     rearMirror.position.set(0, 1.7, -0.6);
     g.add(rearMirror);
 
     const rearGlass = new THREE.Mesh(
       new THREE.PlaneGeometry(0.28, 0.1),
-      new THREE.MeshBasicMaterial({ color: 0x334455 }),
+      new THREE.MeshBasicMaterial({ color: 0x334455 })
     );
     rearGlass.position.set(0, 1.7, -0.585);
     g.add(rearGlass);
@@ -531,7 +507,6 @@ export class Game {
       ctx.fillStyle = ['#445', '#556', '#334'][i];
       ctx.fillRect(cx - cw / 2, cy, cw, ch);
     }
-
   }
 
   private setupParticles(): void {
@@ -579,10 +554,7 @@ export class Game {
     if (this.obstacles.length >= this.maxObstacles) return;
 
     const g = new THREE.Group();
-    const colors = [
-      0xcc2222, 0xcc8800, 0x8833cc, 0x00aa88,
-      0xcc5500, 0x1188cc, 0xcccccc, 0x33aa33,
-    ];
+    const colors = [0xcc2222, 0xcc8800, 0x8833cc, 0x00aa88, 0xcc5500, 0x1188cc, 0xcccccc, 0x33aa33];
     const color = colors[Math.floor(Math.random() * colors.length)];
 
     const bodyMat = new THREE.MeshStandardMaterial({
@@ -605,20 +577,14 @@ export class Game {
 
     const tailMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
     for (const side of [-0.65, 0.65]) {
-      const tl = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3, 0.18, 0.06),
-        tailMat,
-      );
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.18, 0.06), tailMat);
       tl.position.set(side, 0.6, 1.85);
       g.add(tl);
     }
 
     const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
     for (const side of [-0.65, 0.65]) {
-      const hl = new THREE.Mesh(
-        new THREE.BoxGeometry(0.25, 0.16, 0.06),
-        hlMat,
-      );
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.16, 0.06), hlMat);
       hl.position.set(side, 0.5, -2.0);
       g.add(hl);
     }
@@ -651,15 +617,17 @@ export class Game {
 
     this.position = Math.max(
       1,
-      Math.min(
-        this.totalCars,
-        Math.floor((this.obstacles.length / 6) * (this.totalCars - 1)) + 2,
-      ),
+      Math.min(this.totalCars, Math.floor((this.obstacles.length / 6) * (this.totalCars - 1)) + 2)
     );
 
     const rawSteer = (this.centerX - 0.5) * 2 * this.sensitivity;
     const deadZone = 0.02;
-    let steerInput = Math.abs(rawSteer) < deadZone ? 0 : (rawSteer > 0 ? (rawSteer - deadZone) / (1 - deadZone) : (rawSteer + deadZone) / (1 - deadZone));
+    let steerInput =
+      Math.abs(rawSteer) < deadZone
+        ? 0
+        : rawSteer > 0
+          ? (rawSteer - deadZone) / (1 - deadZone)
+          : (rawSteer + deadZone) / (1 - deadZone);
     steerInput = Math.sign(steerInput) * Math.pow(Math.abs(steerInput), 0.85);
     const targetX = steerInput * 5;
     this.cameraX = this.smoothSteer.update(targetX);

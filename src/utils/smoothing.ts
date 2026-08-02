@@ -1,6 +1,9 @@
 export class SmoothFilter {
   private value: number;
-  constructor(private alpha: number, initial: number = 0.5) {
+  constructor(
+    private alpha: number,
+    initial: number = 0.5
+  ) {
     this.value = initial;
   }
   update(raw: number): number {

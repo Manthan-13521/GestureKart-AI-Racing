@@ -7,7 +7,7 @@ description: Research-grounded UI/UX design system for car and kart racing games
 
 Approach this as the UI/UX lead on a racing game team who has shipped HUDs for sim, arcade, and mobile racers and knows exactly which numbers a driver's eye needs at 200 mph and which ones are just noise. Racing UI is a narrow, well-studied genre with real conventions — this skill exists so you don't have to reinvent the speedometer from first principles, and so the screens you build feel like they belong to a shipped game rather than a generic dashboard with a car on it.
 
-This skill covers racing-**domain** knowledge: what screens a racing game needs, what each one must communicate, and the genre conventions that make a HUD readable at speed. For general visual-design craft — palette selection, type pairing, avoiding templated AI-default looks, layout composition — pair this with the `frontend-design` skill if it's available. That skill makes the pixels good; this skill makes them *correct for a racing game*.
+This skill covers racing-**domain** knowledge: what screens a racing game needs, what each one must communicate, and the genre conventions that make a HUD readable at speed. For general visual-design craft — palette selection, type pairing, avoiding templated AI-default looks, layout composition — pair this with the `frontend-design` skill if it's available. That skill makes the pixels good; this skill makes them _correct for a racing game_.
 
 ## The non-negotiables
 
@@ -35,21 +35,21 @@ State your assumptions for these three explicitly before you start building, the
 
 A racing game's UI is bigger than the HUD. Use this checklist to figure out what actually needs building before diving into any one screen. Not every game needs every row — a time-trial game might skip "garage" entirely; a couch kart game might skip "lobby."
 
-| Screen | Purpose | Reference |
-|---|---|---|
-| Title / boot | First brand impression, press-to-start | `menu-and-flow.md` |
-| Main menu | Mode selection hub | `menu-and-flow.md` |
-| Garage / car select | Choose and inspect a vehicle | `menu-and-flow.md` |
-| Customization (livery, upgrades, tuning) | Express identity, build performance | `menu-and-flow.md` |
-| Track / event select | Choose where to race | `menu-and-flow.md` |
-| Pre-race / lobby | Grid view, opponent list, matchmaking, ready-up | `menu-and-flow.md` |
-| Loading | Tips, car/track art, progress | `menu-and-flow.md` |
-| **In-race HUD** | Speed, position, lap, minimap, event feedback | `hud-design.md` |
-| Pause | Resume, restart, settings, quit | `menu-and-flow.md` |
-| Results / post-race | Standings, splits, XP, unlocks | `menu-and-flow.md` |
-| Leaderboards / crews / clubs | Social comparison, rivalries, friend groups | `menu-and-flow.md` |
-| Settings (incl. accessibility) | Controls, display, audio, HUD customization | `accessibility.md` |
-| Onboarding / tutorial | Teach one mechanic at a time, in context | `menu-and-flow.md` |
+| Screen                                   | Purpose                                         | Reference          |
+| ---------------------------------------- | ----------------------------------------------- | ------------------ |
+| Title / boot                             | First brand impression, press-to-start          | `menu-and-flow.md` |
+| Main menu                                | Mode selection hub                              | `menu-and-flow.md` |
+| Garage / car select                      | Choose and inspect a vehicle                    | `menu-and-flow.md` |
+| Customization (livery, upgrades, tuning) | Express identity, build performance             | `menu-and-flow.md` |
+| Track / event select                     | Choose where to race                            | `menu-and-flow.md` |
+| Pre-race / lobby                         | Grid view, opponent list, matchmaking, ready-up | `menu-and-flow.md` |
+| Loading                                  | Tips, car/track art, progress                   | `menu-and-flow.md` |
+| **In-race HUD**                          | Speed, position, lap, minimap, event feedback   | `hud-design.md`    |
+| Pause                                    | Resume, restart, settings, quit                 | `menu-and-flow.md` |
+| Results / post-race                      | Standings, splits, XP, unlocks                  | `menu-and-flow.md` |
+| Leaderboards / crews / clubs             | Social comparison, rivalries, friend groups     | `menu-and-flow.md` |
+| Settings (incl. accessibility)           | Controls, display, audio, HUD customization     | `accessibility.md` |
+| Onboarding / tutorial                    | Teach one mechanic at a time, in context        | `menu-and-flow.md` |
 
 ## Build workflow
 
@@ -79,7 +79,7 @@ Read these on demand — don't load them all up front unless you're doing a full
 
 ## Common pitfalls
 
-- **Cloning a specific game's exact look.** Genre conventions are free to reuse; a specific game's logo, exact typeface, or signature color combo isn't. Build an original visual identity that follows the *pattern*, the way `genre-playbook.md` describes it, not a pixel-for-pixel skin.
+- **Cloning a specific game's exact look.** Genre conventions are free to reuse; a specific game's logo, exact typeface, or signature color combo isn't. Build an original visual identity that follows the _pattern_, the way `genre-playbook.md` describes it, not a pixel-for-pixel skin.
 - **A HUD that's fully static or fully animated.** Static HUDs feel dead; HUDs that constantly move or pulse are exhausting and hide the moments that should stand out. Reserve motion for state changes.
 - **Over-trusting motion blur for "sense of speed."** It's the first thing people reach for and the least reliable — see `hud-design.md` for what actually reads as fast.
 - **Menus that require different buttons to confirm/back out in different screens.** This is the single most common racing-menu complaint in player feedback. Pick a mapping in step 1 of the build workflow and never break it.

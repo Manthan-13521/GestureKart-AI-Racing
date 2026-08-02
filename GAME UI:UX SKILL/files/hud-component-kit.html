@@ -1,606 +1,1144 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Racing UI Component Kit — reference implementation</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  /* ============================================================
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Racing UI Component Kit — reference implementation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ============================================================
      TOKEN SYSTEM — read this block first.
      Everything below derives from these variables. To re-theme
      this kit for a different game, change values here only.
      See references/visual-language.md for the reasoning.
      ============================================================ */
-  :root {
-    /* Ground */
-    --bg-void: #0A0E14;                     /* page background — the "sky" behind the HUD */
-    --bg-panel: rgba(15, 20, 30, 0.72);     /* translucent HUD chrome */
-    --bg-panel-solid: #131A27;              /* solid menu / garage panels */
-    --bg-panel-raised: #1B2433;             /* cards, swatches, fleet tiles */
-    --line: rgba(255, 255, 255, 0.09);      /* hairlines / dividers */
+      :root {
+        /* Ground */
+        --bg-void: #0a0e14; /* page background — the "sky" behind the HUD */
+        --bg-panel: rgba(15, 20, 30, 0.72); /* translucent HUD chrome */
+        --bg-panel-solid: #131a27; /* solid menu / garage panels */
+        --bg-panel-raised: #1b2433; /* cards, swatches, fleet tiles */
+        --line: rgba(255, 255, 255, 0.09); /* hairlines / dividers */
 
-    /* Text */
-    --text-primary: #F4F6F9;
-    --text-secondary: #8B93A7;
-    --text-tertiary: #5C6478;
+        /* Text */
+        --text-primary: #f4f6f9;
+        --text-secondary: #8b93a7;
+        --text-tertiary: #5c6478;
 
-    /* Accents — reserved for meaning, not decoration (visual-language.md) */
-    --accent-primary: #FF8A3D;   /* brand / selection / boost */
-    --accent-secondary: #35D0BA; /* positive / self-marker / secondary highlight */
-    --accent-gold: #FFD166;      /* 1st place / celebratory */
-    --accent-danger: #FF4D5E;    /* damage / warning */
+        /* Accents — reserved for meaning, not decoration (visual-language.md) */
+        --accent-primary: #ff8a3d; /* brand / selection / boost */
+        --accent-secondary: #35d0ba; /* positive / self-marker / secondary highlight */
+        --accent-gold: #ffd166; /* 1st place / celebratory */
+        --accent-danger: #ff4d5e; /* damage / warning */
 
-    /* Type — see visual-language.md */
-    --font-display: 'Orbitron', 'Audiowide', sans-serif;
-    --font-hud: 'Rajdhani', 'Saira Condensed', 'Barlow Condensed', sans-serif;
-    --font-body: 'Inter', 'Titillium Web', system-ui, sans-serif;
+        /* Type — see visual-language.md */
+        --font-display: 'Orbitron', 'Audiowide', sans-serif;
+        --font-hud: 'Rajdhani', 'Saira Condensed', 'Barlow Condensed', sans-serif;
+        --font-body: 'Inter', 'Titillium Web', system-ui, sans-serif;
 
-    /* Scale */
-    --radius-sm: 6px;
-    --radius-md: 12px;
-    --radius-lg: 20px;
-  }
+        /* Scale */
+        --radius-sm: 6px;
+        --radius-md: 12px;
+        --radius-lg: 20px;
+      }
 
-  * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
 
-  html, body {
-    margin: 0;
-    background: var(--bg-void);
-    color: var(--text-primary);
-    font-family: var(--font-body);
-  }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg-void);
+        color: var(--text-primary);
+        font-family: var(--font-body);
+      }
 
-  body { padding: 20px; }
+      body {
+        padding: 20px;
+      }
 
-  .app { max-width: 980px; margin: 0 auto; }
+      .app {
+        max-width: 980px;
+        margin: 0 auto;
+      }
 
-  /* ---------- Top bar ---------- */
-  .topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px;
-    padding: 4px 4px 16px;
-  }
-  .brand { display: flex; align-items: baseline; gap: 10px; }
-  .brand-mark { color: var(--accent-primary); font-size: 20px; }
-  .brand-name {
-    font-family: var(--font-display); font-weight: 900;
-    font-size: 20px; letter-spacing: 0.12em;
-  }
-  .brand-tag { color: var(--text-tertiary); font-size: 12px; }
+      /* ---------- Top bar ---------- */
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 4px 4px 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .brand-mark {
+        color: var(--accent-primary);
+        font-size: 20px;
+      }
+      .brand-name {
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: 20px;
+        letter-spacing: 0.12em;
+      }
+      .brand-tag {
+        color: var(--text-tertiary);
+        font-size: 12px;
+      }
 
-  .view-tabs { display: flex; gap: 6px; background: var(--bg-panel-solid); padding: 4px; border-radius: var(--radius-md); }
-  .tab {
-    font-family: var(--font-hud); font-weight: 600; font-size: 15px; letter-spacing: 0.03em;
-    background: transparent; border: none; color: var(--text-secondary);
-    padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer;
-  }
-  .tab.active { background: var(--accent-primary); color: #1a0f04; }
-  .tab:focus-visible, button:focus-visible, .swatch:focus-visible {
-    outline: 2px solid var(--accent-secondary); outline-offset: 2px;
-  }
+      .view-tabs {
+        display: flex;
+        gap: 6px;
+        background: var(--bg-panel-solid);
+        padding: 4px;
+        border-radius: var(--radius-md);
+      }
+      .tab {
+        font-family: var(--font-hud);
+        font-weight: 600;
+        font-size: 15px;
+        letter-spacing: 0.03em;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+      }
+      .tab.active {
+        background: var(--accent-primary);
+        color: #1a0f04;
+      }
+      .tab:focus-visible,
+      button:focus-visible,
+      .swatch:focus-visible {
+        outline: 2px solid var(--accent-secondary);
+        outline-offset: 2px;
+      }
 
-  /* ---------- Stage ---------- */
-  .stage {
-    position: relative;
-    background: var(--bg-panel-solid);
-    border: 1px solid var(--line);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-  }
-  .view { display: none; }
-  .view.active { display: block; }
+      /* ---------- Stage ---------- */
+      .stage {
+        position: relative;
+        background: var(--bg-panel-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .view {
+        display: none;
+      }
+      .view.active {
+        display: block;
+      }
 
-  /* ============================================================
+      /* ============================================================
      RACE HUD VIEW
      ============================================================ */
-  #view-hud { position: relative; aspect-ratio: 16 / 9; min-height: 380px; }
+      #view-hud {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        min-height: 380px;
+      }
 
-  .track-backdrop { position: absolute; inset: 0; }
-  .sky {
-    position: absolute; inset: 0;
-    background: linear-gradient(180deg, #1a1030 0%, #3a1f2e 38%, #7a3a2a 58%, #0A0E14 78%);
-  }
-  .road {
-    position: absolute; left: 50%; bottom: 0; width: 240%; height: 60%;
-    transform: translateX(-50%);
-    background: linear-gradient(180deg, rgba(30,34,44,0) 0%, #21262f 40%, #14171d 100%);
-    clip-path: polygon(38% 0%, 62% 0%, 82% 100%, 18% 100%);
-  }
-  .lane-line {
-    position: absolute; bottom: 0; width: 3px; height: 100%;
-    background: linear-gradient(180deg, rgba(244,246,249,0) 0%, rgba(244,246,249,0.5) 60%, rgba(244,246,249,0.85) 100%);
-  }
-  .lane-line.l1 { left: 50%; transform: translateX(-70px) skewX(-8deg); }
-  .lane-line.l2 { left: 50%; transform: translateX(64px) skewX(8deg); }
+      .track-backdrop {
+        position: absolute;
+        inset: 0;
+      }
+      .sky {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, #1a1030 0%, #3a1f2e 38%, #7a3a2a 58%, #0a0e14 78%);
+      }
+      .road {
+        position: absolute;
+        left: 50%;
+        bottom: 0;
+        width: 240%;
+        height: 60%;
+        transform: translateX(-50%);
+        background: linear-gradient(180deg, rgba(30, 34, 44, 0) 0%, #21262f 40%, #14171d 100%);
+        clip-path: polygon(38% 0%, 62% 0%, 82% 100%, 18% 100%);
+      }
+      .lane-line {
+        position: absolute;
+        bottom: 0;
+        width: 3px;
+        height: 100%;
+        background: linear-gradient(
+          180deg,
+          rgba(244, 246, 249, 0) 0%,
+          rgba(244, 246, 249, 0.5) 60%,
+          rgba(244, 246, 249, 0.85) 100%
+        );
+      }
+      .lane-line.l1 {
+        left: 50%;
+        transform: translateX(-70px) skewX(-8deg);
+      }
+      .lane-line.l2 {
+        left: 50%;
+        transform: translateX(64px) skewX(8deg);
+      }
 
-  .hud-cluster { position: absolute; z-index: 2; }
-  .corner-tl { top: 20px; left: 20px; }
-  .corner-tr { top: 20px; right: 20px; text-align: right; }
-  .corner-bl { left: 20px; bottom: 20px; }
-  .corner-br { right: 20px; bottom: 20px; }
+      .hud-cluster {
+        position: absolute;
+        z-index: 2;
+      }
+      .corner-tl {
+        top: 20px;
+        left: 20px;
+      }
+      .corner-tr {
+        top: 20px;
+        right: 20px;
+        text-align: right;
+      }
+      .corner-bl {
+        left: 20px;
+        bottom: 20px;
+      }
+      .corner-br {
+        right: 20px;
+        bottom: 20px;
+      }
 
-  .pos-lap {
-    display: flex; gap: 14px; align-items: baseline;
-    background: var(--bg-panel); backdrop-filter: blur(4px);
-    padding: 8px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line);
-    font-family: var(--font-hud); font-variant-numeric: tabular-nums;
-  }
-  .stat .value { font-size: 26px; font-weight: 700; }
-  .stat .unit { font-size: 14px; color: var(--text-secondary); margin-left: 2px; }
-  .stat.lap .label { font-size: 11px; color: var(--text-tertiary); display: block; letter-spacing: 0.08em; }
+      .pos-lap {
+        display: flex;
+        gap: 14px;
+        align-items: baseline;
+        background: var(--bg-panel);
+        backdrop-filter: blur(4px);
+        padding: 8px 14px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+        font-family: var(--font-hud);
+        font-variant-numeric: tabular-nums;
+      }
+      .stat .value {
+        font-size: 26px;
+        font-weight: 700;
+      }
+      .stat .unit {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-left: 2px;
+      }
+      .stat.lap .label {
+        font-size: 11px;
+        color: var(--text-tertiary);
+        display: block;
+        letter-spacing: 0.08em;
+      }
 
-  .delta {
-    margin-top: 6px; font-family: var(--font-hud); font-variant-numeric: tabular-nums;
-    font-size: 18px; font-weight: 600; color: var(--accent-secondary);
-    background: var(--bg-panel); display: inline-block; padding: 4px 10px;
-    border-radius: var(--radius-sm); border: 1px solid var(--line);
-  }
-  .delta.behind { color: var(--accent-danger); }
+      .delta {
+        margin-top: 6px;
+        font-family: var(--font-hud);
+        font-variant-numeric: tabular-nums;
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--accent-secondary);
+        background: var(--bg-panel);
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: var(--radius-sm);
+        border: 1px solid var(--line);
+      }
+      .delta.behind {
+        color: var(--accent-danger);
+      }
 
-  .minimap { width: 128px; height: 84px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius-sm); }
-  .minimap-track { fill: none; stroke: var(--text-tertiary); stroke-width: 3; }
-  .dot-rival { fill: var(--text-secondary); }
-  .dot-self { fill: var(--accent-secondary); stroke: var(--bg-void); stroke-width: 1; }
+      .minimap {
+        width: 128px;
+        height: 84px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+      }
+      .minimap-track {
+        fill: none;
+        stroke: var(--text-tertiary);
+        stroke-width: 3;
+      }
+      .dot-rival {
+        fill: var(--text-secondary);
+      }
+      .dot-self {
+        fill: var(--accent-secondary);
+        stroke: var(--bg-void);
+        stroke-width: 1;
+      }
 
-  .tire-strip { margin-top: 8px; display: flex; gap: 4px; justify-content: flex-end; font-size: 12px; }
-  .tire {
-    width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center;
-    background: var(--bg-panel); border: 1px solid var(--line); color: var(--text-primary);
-  }
-  .tire.ok::before { content: "●"; color: var(--accent-secondary); font-size: 9px; }
-  .tire.warn::before { content: "▲"; color: var(--accent-danger); font-size: 9px; }
+      .tire-strip {
+        margin-top: 8px;
+        display: flex;
+        gap: 4px;
+        justify-content: flex-end;
+        font-size: 12px;
+      }
+      .tire {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        color: var(--text-primary);
+      }
+      .tire.ok::before {
+        content: '●';
+        color: var(--accent-secondary);
+        font-size: 9px;
+      }
+      .tire.warn::before {
+        content: '▲';
+        color: var(--accent-danger);
+        font-size: 9px;
+      }
 
-  .boost-meter {
-    width: 160px; height: 16px; background: var(--bg-panel); border: 1px solid var(--line);
-    border-radius: 999px; overflow: hidden; position: relative;
-  }
-  .boost-fill {
-    height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
-    transition: width 120ms linear;
-  }
-  .boost-meter.ready { box-shadow: 0 0 0 2px var(--accent-primary), 0 0 16px 2px var(--accent-primary); }
-  .boost-meter.ready .boost-fill { animation: pulse-boost 700ms ease-in-out infinite alternate; }
-  @keyframes pulse-boost { from { filter: brightness(1); } to { filter: brightness(1.35); } }
+      .boost-meter {
+        width: 160px;
+        height: 16px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .boost-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+        transition: width 120ms linear;
+      }
+      .boost-meter.ready {
+        box-shadow:
+          0 0 0 2px var(--accent-primary),
+          0 0 16px 2px var(--accent-primary);
+      }
+      .boost-meter.ready .boost-fill {
+        animation: pulse-boost 700ms ease-in-out infinite alternate;
+      }
+      @keyframes pulse-boost {
+        from {
+          filter: brightness(1);
+        }
+        to {
+          filter: brightness(1.35);
+        }
+      }
 
-  .damage-row { display: flex; gap: 6px; margin-top: 8px; }
-  .damage-icon {
-    width: 22px; height: 22px; border-radius: 5px; background: var(--bg-panel); border: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--accent-secondary);
-  }
-  .damage-icon::before { content: "●"; }
-  .damage-icon.warn { color: var(--accent-danger); }
-  .damage-icon.warn::before { content: "▲"; }
+      .damage-row {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .damage-icon {
+        width: 22px;
+        height: 22px;
+        border-radius: 5px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        color: var(--accent-secondary);
+      }
+      .damage-icon::before {
+        content: '●';
+      }
+      .damage-icon.warn {
+        color: var(--accent-danger);
+      }
+      .damage-icon.warn::before {
+        content: '▲';
+      }
 
-  .speed-cluster { display: flex; align-items: flex-end; gap: 10px; }
-  .gauge { width: 168px; height: auto; overflow: visible; }
-  .gauge-track { fill: none; stroke: var(--bg-void); stroke-width: 10; stroke-linecap: round; }
-  .gauge-fill { fill: none; stroke: var(--accent-primary); stroke-width: 10; stroke-linecap: round;
-    stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset 120ms linear; }
-  .needle { stroke: var(--text-primary); stroke-width: 3; stroke-linecap: round; }
-  .hub { fill: var(--text-primary); }
-  .speed-readout { text-align: center; font-family: var(--font-hud); font-variant-numeric: tabular-nums; margin-bottom: 6px; }
-  .speed-value { font-size: 44px; font-weight: 700; line-height: 1; display: block; }
-  .speed-unit { font-size: 12px; color: var(--text-secondary); letter-spacing: 0.1em; }
-  .gear-readout {
-    font-family: var(--font-display); font-weight: 900; font-size: 22px;
-    background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius-sm);
-    width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px;
-  }
+      .speed-cluster {
+        display: flex;
+        align-items: flex-end;
+        gap: 10px;
+      }
+      .gauge {
+        width: 168px;
+        height: auto;
+        overflow: visible;
+      }
+      .gauge-track {
+        fill: none;
+        stroke: var(--bg-void);
+        stroke-width: 10;
+        stroke-linecap: round;
+      }
+      .gauge-fill {
+        fill: none;
+        stroke: var(--accent-primary);
+        stroke-width: 10;
+        stroke-linecap: round;
+        stroke-dasharray: 100;
+        stroke-dashoffset: 100;
+        transition: stroke-dashoffset 120ms linear;
+      }
+      .needle {
+        stroke: var(--text-primary);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .hub {
+        fill: var(--text-primary);
+      }
+      .speed-readout {
+        text-align: center;
+        font-family: var(--font-hud);
+        font-variant-numeric: tabular-nums;
+        margin-bottom: 6px;
+      }
+      .speed-value {
+        font-size: 44px;
+        font-weight: 700;
+        line-height: 1;
+        display: block;
+      }
+      .speed-unit {
+        font-size: 12px;
+        color: var(--text-secondary);
+        letter-spacing: 0.1em;
+      }
+      .gear-readout {
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: 22px;
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        width: 38px;
+        height: 38px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 6px;
+      }
 
-  .event-banner {
-    position: absolute; top: 14%; left: 50%; transform: translate(-50%, -12px);
-    font-family: var(--font-display); font-weight: 900; font-size: clamp(20px, 4vw, 34px);
-    letter-spacing: 0.08em; color: var(--accent-gold);
-    text-shadow: 0 0 18px rgba(255, 209, 102, 0.6);
-    opacity: 0; pointer-events: none; z-index: 3; transition: opacity 260ms ease, transform 260ms ease;
-  }
-  .event-banner.show { opacity: 1; transform: translate(-50%, 0); }
+      .event-banner {
+        position: absolute;
+        top: 14%;
+        left: 50%;
+        transform: translate(-50%, -12px);
+        font-family: var(--font-display);
+        font-weight: 900;
+        font-size: clamp(20px, 4vw, 34px);
+        letter-spacing: 0.08em;
+        color: var(--accent-gold);
+        text-shadow: 0 0 18px rgba(255, 209, 102, 0.6);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 3;
+        transition:
+          opacity 260ms ease,
+          transform 260ms ease;
+      }
+      .event-banner.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
 
-  .density-toggle {
-    position: absolute; z-index: 3; top: 20px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--text-tertiary);
-    background: var(--bg-panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px;
-  }
-  .density-btn {
-    font-family: var(--font-hud); font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
-    background: transparent; border: none; color: var(--text-secondary); padding: 5px 12px; border-radius: 999px; cursor: pointer;
-  }
-  .density-btn.active { background: var(--accent-secondary); color: #05221c; }
+      .density-toggle {
+        position: absolute;
+        z-index: 3;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        font-size: 12px;
+        color: var(--text-tertiary);
+        background: var(--bg-panel);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 4px 6px 4px 12px;
+      }
+      .density-btn {
+        font-family: var(--font-hud);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        padding: 5px 12px;
+        border-radius: 999px;
+        cursor: pointer;
+      }
+      .density-btn.active {
+        background: var(--accent-secondary);
+        color: #05221c;
+      }
 
-  .sim-only { display: none; }
-  #view-hud.sim .sim-only { display: block; }
-  #view-hud.sim .tire-strip.sim-only { display: flex; }
+      .sim-only {
+        display: none;
+      }
+      #view-hud.sim .sim-only {
+        display: block;
+      }
+      #view-hud.sim .tire-strip.sim-only {
+        display: flex;
+      }
 
-  .demo-controls {
-    position: absolute; z-index: 3; bottom: 12px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 8px;
-  }
-  .demo-controls button {
-    font-family: var(--font-body); font-size: 11px; background: rgba(0,0,0,0.35); color: var(--text-secondary);
-    border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer;
-  }
-  .demo-controls button:hover { color: var(--text-primary); border-color: var(--accent-secondary); }
+      .demo-controls {
+        position: absolute;
+        z-index: 3;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+      }
+      .demo-controls button {
+        font-family: var(--font-body);
+        font-size: 11px;
+        background: rgba(0, 0, 0, 0.35);
+        color: var(--text-secondary);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      .demo-controls button:hover {
+        color: var(--text-primary);
+        border-color: var(--accent-secondary);
+      }
 
-  /* ============================================================
+      /* ============================================================
      GARAGE VIEW
      ============================================================ */
-  #view-garage { padding: 28px; }
-  .garage-layout { display: grid; grid-template-columns: 1.3fr 1fr; gap: 28px; }
-  @media (max-width: 720px) { .garage-layout { grid-template-columns: 1fr; } }
+      #view-garage {
+        padding: 28px;
+      }
+      .garage-layout {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 28px;
+      }
+      @media (max-width: 720px) {
+        .garage-layout {
+          grid-template-columns: 1fr;
+        }
+      }
 
-  .showcase-frame {
-    background: radial-gradient(ellipse at 50% 30%, rgba(255,138,61,0.14), transparent 60%), var(--bg-panel-raised);
-    border: 1px solid var(--line); border-radius: var(--radius-md);
-    display: flex; align-items: center; justify-content: center; padding: 20px;
-  }
-  .car-art { width: 100%; max-width: 380px; }
-  .car-body { fill: var(--car-color, var(--accent-primary)); transition: fill 200ms ease; }
-  .wheel { fill: #12151b; stroke: var(--text-tertiary); stroke-width: 3; }
+      .showcase-frame {
+        background:
+          radial-gradient(ellipse at 50% 30%, rgba(255, 138, 61, 0.14), transparent 60%),
+          var(--bg-panel-raised);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .car-art {
+        width: 100%;
+        max-width: 380px;
+      }
+      .car-body {
+        fill: var(--car-color, var(--accent-primary));
+        transition: fill 200ms ease;
+      }
+      .wheel {
+        fill: #12151b;
+        stroke: var(--text-tertiary);
+        stroke-width: 3;
+      }
 
-  .showcase-meta { margin-top: 14px; }
-  .showcase-meta h2 {
-    font-family: var(--font-display); font-size: 22px; letter-spacing: 0.04em; margin: 0 0 4px;
-  }
-  .car-class { color: var(--text-secondary); font-family: var(--font-hud); font-size: 14px; letter-spacing: 0.04em; }
+      .showcase-meta {
+        margin-top: 14px;
+      }
+      .showcase-meta h2 {
+        font-family: var(--font-display);
+        font-size: 22px;
+        letter-spacing: 0.04em;
+        margin: 0 0 4px;
+      }
+      .car-class {
+        color: var(--text-secondary);
+        font-family: var(--font-hud);
+        font-size: 14px;
+        letter-spacing: 0.04em;
+      }
 
-  .livery-swatches { display: flex; gap: 10px; margin-top: 14px; }
-  .swatch {
-    width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line);
-    background: var(--sw); cursor: pointer;
-  }
-  .swatch.active { border-color: var(--text-primary); }
+      .livery-swatches {
+        display: flex;
+        gap: 10px;
+        margin-top: 14px;
+      }
+      .swatch {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        border: 2px solid var(--line);
+        background: var(--sw);
+        cursor: pointer;
+      }
+      .swatch.active {
+        border-color: var(--text-primary);
+      }
 
-  .stat-panel {
-    background: var(--bg-panel-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
-    padding: 20px; display: flex; flex-direction: column; gap: 14px; justify-content: center;
-  }
-  .stat-row { display: flex; align-items: center; gap: 12px; }
-  .stat-label {
-    width: 108px; flex-shrink: 0; font-family: var(--font-hud); font-size: 14px; color: var(--text-secondary);
-  }
-  .bar { flex: 1; height: 8px; background: var(--bg-void); border-radius: 999px; overflow: hidden; }
-  .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary)); }
+      .stat-panel {
+        background: var(--bg-panel-raised);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        justify-content: center;
+      }
+      .stat-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .stat-label {
+        width: 108px;
+        flex-shrink: 0;
+        font-family: var(--font-hud);
+        font-size: 14px;
+        color: var(--text-secondary);
+      }
+      .bar {
+        flex: 1;
+        height: 8px;
+        background: var(--bg-void);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+      }
 
-  .cta-race {
-    margin-top: 6px; font-family: var(--font-hud); font-weight: 700; font-size: 16px; letter-spacing: 0.03em;
-    background: var(--accent-primary); color: #1a0f04; border: none; border-radius: var(--radius-sm);
-    padding: 12px 18px; cursor: pointer;
-  }
-  .cta-race:hover { filter: brightness(1.08); }
+      .cta-race {
+        margin-top: 6px;
+        font-family: var(--font-hud);
+        font-weight: 700;
+        font-size: 16px;
+        letter-spacing: 0.03em;
+        background: var(--accent-primary);
+        color: #1a0f04;
+        border: none;
+        border-radius: var(--radius-sm);
+        padding: 12px 18px;
+        cursor: pointer;
+      }
+      .cta-race:hover {
+        filter: brightness(1.08);
+      }
 
-  .fleet-row { margin-top: 28px; }
-  .fleet-label {
-    font-family: var(--font-hud); font-size: 13px; letter-spacing: 0.1em; color: var(--text-tertiary);
-    text-transform: uppercase; margin-bottom: 10px;
-  }
-  .fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
-  .fleet-card {
-    background: var(--bg-panel-raised); border: 1px solid var(--line); border-radius: var(--radius-sm);
-    padding: 10px; cursor: pointer; text-align: left; color: var(--text-primary); font-family: var(--font-body);
-  }
-  .fleet-card:hover { border-color: var(--accent-secondary); }
-  .fleet-card .fc-name { font-family: var(--font-hud); font-weight: 600; font-size: 13px; display: block; }
-  .fleet-card .fc-class { font-size: 11px; color: var(--text-tertiary); }
-  .fleet-card.locked { color: var(--text-tertiary); cursor: default; opacity: 0.55; }
-  .fleet-card.locked:hover { border-color: var(--line); }
-  .fleet-card.locked .fc-name::before { content: "🔒 "; }
+      .fleet-row {
+        margin-top: 28px;
+      }
+      .fleet-label {
+        font-family: var(--font-hud);
+        font-size: 13px;
+        letter-spacing: 0.1em;
+        color: var(--text-tertiary);
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .fleet-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 10px;
+      }
+      .fleet-card {
+        background: var(--bg-panel-raised);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 10px;
+        cursor: pointer;
+        text-align: left;
+        color: var(--text-primary);
+        font-family: var(--font-body);
+      }
+      .fleet-card:hover {
+        border-color: var(--accent-secondary);
+      }
+      .fleet-card .fc-name {
+        font-family: var(--font-hud);
+        font-weight: 600;
+        font-size: 13px;
+        display: block;
+      }
+      .fleet-card .fc-class {
+        font-size: 11px;
+        color: var(--text-tertiary);
+      }
+      .fleet-card.locked {
+        color: var(--text-tertiary);
+        cursor: default;
+        opacity: 0.55;
+      }
+      .fleet-card.locked:hover {
+        border-color: var(--line);
+      }
+      .fleet-card.locked .fc-name::before {
+        content: '🔒 ';
+      }
 
-  /* ---------- Footer ---------- */
-  .legend {
-    max-width: 980px; margin: 14px auto 0; color: var(--text-tertiary); font-size: 12px; line-height: 1.5;
-    padding: 0 4px;
-  }
-  .legend code { color: var(--text-secondary); }
+      /* ---------- Footer ---------- */
+      .legend {
+        max-width: 980px;
+        margin: 14px auto 0;
+        color: var(--text-tertiary);
+        font-size: 12px;
+        line-height: 1.5;
+        padding: 0 4px;
+      }
+      .legend code {
+        color: var(--text-secondary);
+      }
 
-  /* ---------- Reduced motion ---------- */
-  @media (prefers-reduced-motion: reduce) {
-    .needle, .gauge-fill, .boost-fill, .event-banner { transition: none !important; }
-    .boost-meter.ready .boost-fill { animation: none !important; }
-  }
-</style>
-</head>
-<body>
-<div class="app">
-
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">◆</span>
-      <span class="brand-name">SLIPSTREAM</span>
-      <span class="brand-tag">racing-game-ui-ux — component kit</span>
-    </div>
-    <nav class="view-tabs" role="tablist" aria-label="Screen">
-      <button class="tab active" role="tab" aria-selected="true" data-view="hud">Race HUD</button>
-      <button class="tab" role="tab" aria-selected="false" data-view="garage">Garage</button>
-    </nav>
-  </header>
-
-  <main class="stage">
-
-    <!-- ============ RACE HUD ============ -->
-    <section class="view active" id="view-hud" role="tabpanel">
-
-      <div class="density-toggle">
-        <span>Density</span>
-        <button class="density-btn active" data-density="arcade">Arcade</button>
-        <button class="density-btn" data-density="sim">Sim</button>
-      </div>
-
-      <div class="track-backdrop" aria-hidden="true">
-        <div class="sky"></div>
-        <div class="road">
-          <div class="lane-line l1"></div>
-          <div class="lane-line l2"></div>
+      /* ---------- Reduced motion ---------- */
+      @media (prefers-reduced-motion: reduce) {
+        .needle,
+        .gauge-fill,
+        .boost-fill,
+        .event-banner {
+          transition: none !important;
+        }
+        .boost-meter.ready .boost-fill {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <span class="brand-name">SLIPSTREAM</span>
+          <span class="brand-tag">racing-game-ui-ux — component kit</span>
         </div>
-      </div>
+        <nav class="view-tabs" role="tablist" aria-label="Screen">
+          <button class="tab active" role="tab" aria-selected="true" data-view="hud">Race HUD</button>
+          <button class="tab" role="tab" aria-selected="false" data-view="garage">Garage</button>
+        </nav>
+      </header>
 
-      <div class="event-banner" id="eventBanner" aria-live="polite"></div>
-
-      <div class="hud-cluster corner-tl">
-        <div class="pos-lap">
-          <div class="stat position"><span class="value" id="posValue">3</span><span class="unit">/8</span></div>
-          <div class="stat lap"><span class="label">LAP</span><span class="value" id="lapValue">2</span><span class="unit">/3</span></div>
-        </div>
-        <div class="delta sim-only" id="deltaReadout">−0.24<span class="unit">s</span></div>
-      </div>
-
-      <div class="hud-cluster corner-tr">
-        <svg class="minimap" viewBox="0 0 120 80" aria-hidden="true">
-          <ellipse cx="60" cy="40" rx="50" ry="30" class="minimap-track" />
-          <circle class="dot dot-rival" cx="78" cy="18" r="3" />
-          <circle class="dot dot-rival" cx="34" cy="60" r="3" />
-          <rect class="dot dot-self" id="mapSelf" x="86.6" y="36.6" width="6.8" height="6.8" transform="rotate(45 90 40)" />
-        </svg>
-        <div class="tire-strip sim-only" id="tireStrip">
-          <span class="tire ok" title="Front-left tire: OK" aria-label="Front-left tire OK"></span>
-          <span class="tire ok" title="Front-right tire: OK" aria-label="Front-right tire OK"></span>
-          <span class="tire warn" title="Rear-left tire: overheating" aria-label="Rear-left tire overheating"></span>
-          <span class="tire ok" title="Rear-right tire: OK" aria-label="Rear-right tire OK"></span>
-        </div>
-      </div>
-
-      <div class="hud-cluster corner-bl">
-        <div class="boost-meter" id="boostMeter">
-          <div class="boost-fill" id="boostFill"></div>
-        </div>
-        <div class="damage-row">
-          <span class="damage-icon" title="Front-left: OK" aria-label="Front-left panel OK"></span>
-          <span class="damage-icon" title="Front-right: OK" aria-label="Front-right panel OK"></span>
-          <span class="damage-icon warn" title="Rear-left: damaged" aria-label="Rear-left panel damaged"></span>
-          <span class="damage-icon" title="Rear-right: OK" aria-label="Rear-right panel OK"></span>
-        </div>
-      </div>
-
-      <div class="hud-cluster corner-br">
-        <div class="speed-cluster">
-          <div class="gear-readout" id="gearValue">N</div>
-          <div class="speed-readout">
-            <span class="speed-value" id="speedValue">0</span>
-            <span class="speed-unit">MPH</span>
+      <main class="stage">
+        <!-- ============ RACE HUD ============ -->
+        <section class="view active" id="view-hud" role="tabpanel">
+          <div class="density-toggle">
+            <span>Density</span>
+            <button class="density-btn active" data-density="arcade">Arcade</button>
+            <button class="density-btn" data-density="sim">Sim</button>
           </div>
-          <svg class="gauge" viewBox="0 0 200 120" aria-hidden="true">
-            <path class="gauge-track" pathLength="100" d="M20,110 A80,80 0 0 1 180,110" />
-            <path class="gauge-fill" id="gaugeFill" pathLength="100" d="M20,110 A80,80 0 0 1 180,110" />
-            <g id="needleGroup"><line class="needle" x1="100" y1="110" x2="100" y2="40" /></g>
-            <circle class="hub" cx="100" cy="110" r="6" />
-          </svg>
-        </div>
-      </div>
 
-      <div class="demo-controls">
-        <button id="btnBoost" type="button">Trigger boost-ready</button>
-        <button id="btnFinalLap" type="button">Trigger event banner</button>
-      </div>
-    </section>
+          <div class="track-backdrop" aria-hidden="true">
+            <div class="sky"></div>
+            <div class="road">
+              <div class="lane-line l1"></div>
+              <div class="lane-line l2"></div>
+            </div>
+          </div>
 
-    <!-- ============ GARAGE ============ -->
-    <section class="view" id="view-garage" role="tabpanel">
-      <div class="garage-layout">
-        <div class="showcase">
-          <div class="showcase-frame">
-            <svg class="car-art" viewBox="0 0 240 120">
-              <path id="carBody" class="car-body" d="M20,85 Q20,60 55,55 L85,35 Q112,24 150,28 L190,42 Q216,49 220,72 Q220,85 208,85 L200,85 Q198,70 182,70 Q166,70 164,85 L86,85 Q84,70 68,70 Q52,70 50,85 L32,85 Q20,85 20,85 Z" />
-              <circle cx="68" cy="86" r="15" class="wheel" />
-              <circle cx="182" cy="86" r="15" class="wheel" />
+          <div class="event-banner" id="eventBanner" aria-live="polite"></div>
+
+          <div class="hud-cluster corner-tl">
+            <div class="pos-lap">
+              <div class="stat position">
+                <span class="value" id="posValue">3</span><span class="unit">/8</span>
+              </div>
+              <div class="stat lap">
+                <span class="label">LAP</span><span class="value" id="lapValue">2</span
+                ><span class="unit">/3</span>
+              </div>
+            </div>
+            <div class="delta sim-only" id="deltaReadout">−0.24<span class="unit">s</span></div>
+          </div>
+
+          <div class="hud-cluster corner-tr">
+            <svg class="minimap" viewBox="0 0 120 80" aria-hidden="true">
+              <ellipse cx="60" cy="40" rx="50" ry="30" class="minimap-track" />
+              <circle class="dot dot-rival" cx="78" cy="18" r="3" />
+              <circle class="dot dot-rival" cx="34" cy="60" r="3" />
+              <rect
+                class="dot dot-self"
+                id="mapSelf"
+                x="86.6"
+                y="36.6"
+                width="6.8"
+                height="6.8"
+                transform="rotate(45 90 40)"
+              />
             </svg>
+            <div class="tire-strip sim-only" id="tireStrip">
+              <span class="tire ok" title="Front-left tire: OK" aria-label="Front-left tire OK"></span>
+              <span class="tire ok" title="Front-right tire: OK" aria-label="Front-right tire OK"></span>
+              <span
+                class="tire warn"
+                title="Rear-left tire: overheating"
+                aria-label="Rear-left tire overheating"
+              ></span>
+              <span class="tire ok" title="Rear-right tire: OK" aria-label="Rear-right tire OK"></span>
+            </div>
           </div>
-          <div class="showcase-meta">
-            <h2 id="carName">MERIDIAN GT-R</h2>
-            <span class="car-class" id="carClass">S CLASS · 780 HP</span>
+
+          <div class="hud-cluster corner-bl">
+            <div class="boost-meter" id="boostMeter">
+              <div class="boost-fill" id="boostFill"></div>
+            </div>
+            <div class="damage-row">
+              <span class="damage-icon" title="Front-left: OK" aria-label="Front-left panel OK"></span>
+              <span class="damage-icon" title="Front-right: OK" aria-label="Front-right panel OK"></span>
+              <span
+                class="damage-icon warn"
+                title="Rear-left: damaged"
+                aria-label="Rear-left panel damaged"
+              ></span>
+              <span class="damage-icon" title="Rear-right: OK" aria-label="Rear-right panel OK"></span>
+            </div>
           </div>
-          <div class="livery-swatches" id="liverySwatches">
-            <button class="swatch active" style="--sw:#FF8A3D" data-color="#FF8A3D" aria-label="Amber livery"></button>
-            <button class="swatch" style="--sw:#35D0BA" data-color="#35D0BA" aria-label="Teal livery"></button>
-            <button class="swatch" style="--sw:#FF4D5E" data-color="#FF4D5E" aria-label="Coral livery"></button>
-            <button class="swatch" style="--sw:#8B93A7" data-color="#8B93A7" aria-label="Steel livery"></button>
+
+          <div class="hud-cluster corner-br">
+            <div class="speed-cluster">
+              <div class="gear-readout" id="gearValue">N</div>
+              <div class="speed-readout">
+                <span class="speed-value" id="speedValue">0</span>
+                <span class="speed-unit">MPH</span>
+              </div>
+              <svg class="gauge" viewBox="0 0 200 120" aria-hidden="true">
+                <path class="gauge-track" pathLength="100" d="M20,110 A80,80 0 0 1 180,110" />
+                <path class="gauge-fill" id="gaugeFill" pathLength="100" d="M20,110 A80,80 0 0 1 180,110" />
+                <g id="needleGroup"><line class="needle" x1="100" y1="110" x2="100" y2="40" /></g>
+                <circle class="hub" cx="100" cy="110" r="6" />
+              </svg>
+            </div>
           </div>
-        </div>
 
-        <div class="stat-panel">
-          <div class="stat-row"><span class="stat-label">Top Speed</span><div class="bar"><div class="bar-fill" id="statSpeed" style="width:82%"></div></div></div>
-          <div class="stat-row"><span class="stat-label">Acceleration</span><div class="bar"><div class="bar-fill" id="statAccel" style="width:70%"></div></div></div>
-          <div class="stat-row"><span class="stat-label">Handling</span><div class="bar"><div class="bar-fill" id="statHandling" style="width:64%"></div></div></div>
-          <div class="stat-row"><span class="stat-label">Boost</span><div class="bar"><div class="bar-fill" id="statBoost" style="width:90%"></div></div></div>
-          <button class="cta-race" type="button">Race with this car →</button>
-        </div>
-      </div>
+          <div class="demo-controls">
+            <button id="btnBoost" type="button">Trigger boost-ready</button>
+            <button id="btnFinalLap" type="button">Trigger event banner</button>
+          </div>
+        </section>
 
-      <div class="fleet-row">
-        <div class="fleet-label">Your Garage</div>
-        <div class="fleet-grid" id="fleetGrid"></div>
-      </div>
-    </section>
+        <!-- ============ GARAGE ============ -->
+        <section class="view" id="view-garage" role="tabpanel">
+          <div class="garage-layout">
+            <div class="showcase">
+              <div class="showcase-frame">
+                <svg class="car-art" viewBox="0 0 240 120">
+                  <path
+                    id="carBody"
+                    class="car-body"
+                    d="M20,85 Q20,60 55,55 L85,35 Q112,24 150,28 L190,42 Q216,49 220,72 Q220,85 208,85 L200,85 Q198,70 182,70 Q166,70 164,85 L86,85 Q84,70 68,70 Q52,70 50,85 L32,85 Q20,85 20,85 Z"
+                  />
+                  <circle cx="68" cy="86" r="15" class="wheel" />
+                  <circle cx="182" cy="86" r="15" class="wheel" />
+                </svg>
+              </div>
+              <div class="showcase-meta">
+                <h2 id="carName">MERIDIAN GT-R</h2>
+                <span class="car-class" id="carClass">S CLASS · 780 HP</span>
+              </div>
+              <div class="livery-swatches" id="liverySwatches">
+                <button
+                  class="swatch active"
+                  style="--sw: #ff8a3d"
+                  data-color="#FF8A3D"
+                  aria-label="Amber livery"
+                ></button>
+                <button
+                  class="swatch"
+                  style="--sw: #35d0ba"
+                  data-color="#35D0BA"
+                  aria-label="Teal livery"
+                ></button>
+                <button
+                  class="swatch"
+                  style="--sw: #ff4d5e"
+                  data-color="#FF4D5E"
+                  aria-label="Coral livery"
+                ></button>
+                <button
+                  class="swatch"
+                  style="--sw: #8b93a7"
+                  data-color="#8B93A7"
+                  aria-label="Steel livery"
+                ></button>
+              </div>
+            </div>
 
-  </main>
+            <div class="stat-panel">
+              <div class="stat-row">
+                <span class="stat-label">Top Speed</span>
+                <div class="bar"><div class="bar-fill" id="statSpeed" style="width: 82%"></div></div>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Acceleration</span>
+                <div class="bar"><div class="bar-fill" id="statAccel" style="width: 70%"></div></div>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Handling</span>
+                <div class="bar"><div class="bar-fill" id="statHandling" style="width: 64%"></div></div>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Boost</span>
+                <div class="bar"><div class="bar-fill" id="statBoost" style="width: 90%"></div></div>
+              </div>
+              <button class="cta-race" type="button">Race with this car →</button>
+            </div>
+          </div>
 
-  <p class="legend">
-    Reference implementation for the <code>racing-game-ui-ux</code> skill — not a template to ship as-is. Re-theme by editing the CSS custom properties at the top of the file; the reasoning behind each pattern (HUD hierarchy, minimap self/rival shape+color redundancy, boost celebration state, garage anticipation slots) is in <code>SKILL.md</code> and <code>references/</code>.
-  </p>
+          <div class="fleet-row">
+            <div class="fleet-label">Your Garage</div>
+            <div class="fleet-grid" id="fleetGrid"></div>
+          </div>
+        </section>
+      </main>
 
-</div>
+      <p class="legend">
+        Reference implementation for the <code>racing-game-ui-ux</code> skill — not a template to ship as-is.
+        Re-theme by editing the CSS custom properties at the top of the file; the reasoning behind each
+        pattern (HUD hierarchy, minimap self/rival shape+color redundancy, boost celebration state, garage
+        anticipation slots) is in <code>SKILL.md</code> and <code>references/</code>.
+      </p>
+    </div>
 
-<script>
-(function () {
-  "use strict";
-  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    <script>
+      (function () {
+        'use strict';
+        var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  /* ---------------- Tabs ---------------- */
-  var tabs = document.querySelectorAll(".tab");
-  var views = { hud: document.getElementById("view-hud"), garage: document.getElementById("view-garage") };
-  tabs.forEach(function (tab) {
-    tab.addEventListener("click", function () {
-      tabs.forEach(function (t) { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
-      tab.classList.add("active"); tab.setAttribute("aria-selected", "true");
-      Object.keys(views).forEach(function (k) { views[k].classList.remove("active"); });
-      views[tab.dataset.view].classList.add("active");
-    });
-  });
+        /* ---------------- Tabs ---------------- */
+        var tabs = document.querySelectorAll('.tab');
+        var views = {
+          hud: document.getElementById('view-hud'),
+          garage: document.getElementById('view-garage'),
+        };
+        tabs.forEach(function (tab) {
+          tab.addEventListener('click', function () {
+            tabs.forEach(function (t) {
+              t.classList.remove('active');
+              t.setAttribute('aria-selected', 'false');
+            });
+            tab.classList.add('active');
+            tab.setAttribute('aria-selected', 'true');
+            Object.keys(views).forEach(function (k) {
+              views[k].classList.remove('active');
+            });
+            views[tab.dataset.view].classList.add('active');
+          });
+        });
 
-  /* ---------------- Density toggle ---------------- */
-  var densityBtns = document.querySelectorAll(".density-btn");
-  densityBtns.forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      densityBtns.forEach(function (b) { b.classList.remove("active"); });
-      btn.classList.add("active");
-      views.hud.classList.toggle("sim", btn.dataset.density === "sim");
-    });
-  });
+        /* ---------------- Density toggle ---------------- */
+        var densityBtns = document.querySelectorAll('.density-btn');
+        densityBtns.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            densityBtns.forEach(function (b) {
+              b.classList.remove('active');
+            });
+            btn.classList.add('active');
+            views.hud.classList.toggle('sim', btn.dataset.density === 'sim');
+          });
+        });
 
-  /* ---------------- Event banner ---------------- */
-  var banner = document.getElementById("eventBanner");
-  var bannerTimer = null;
-  function flashBanner(text) {
-    banner.textContent = text;
-    banner.classList.add("show");
-    clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(function () { banner.classList.remove("show"); }, 1800);
-  }
-  document.getElementById("btnFinalLap").addEventListener("click", function () { flashBanner("FINAL LAP"); });
+        /* ---------------- Event banner ---------------- */
+        var banner = document.getElementById('eventBanner');
+        var bannerTimer = null;
+        function flashBanner(text) {
+          banner.textContent = text;
+          banner.classList.add('show');
+          clearTimeout(bannerTimer);
+          bannerTimer = setTimeout(function () {
+            banner.classList.remove('show');
+          }, 1800);
+        }
+        document.getElementById('btnFinalLap').addEventListener('click', function () {
+          flashBanner('FINAL LAP');
+        });
 
-  /* ---------------- Boost demo button ---------------- */
-  var boostOverride = 0; // ms remaining of forced "ready" state
-  document.getElementById("btnBoost").addEventListener("click", function () {
-    boostOverride = 1400;
-  });
+        /* ---------------- Boost demo button ---------------- */
+        var boostOverride = 0; // ms remaining of forced "ready" state
+        document.getElementById('btnBoost').addEventListener('click', function () {
+          boostOverride = 1400;
+        });
 
-  /* ---------------- HUD simulation loop ---------------- */
-  var speedEl = document.getElementById("speedValue");
-  var gearEl = document.getElementById("gearValue");
-  var needleGroup = document.getElementById("needleGroup");
-  var gaugeFill = document.getElementById("gaugeFill");
-  var deltaEl = document.getElementById("deltaReadout");
-  var boostFill = document.getElementById("boostFill");
-  var boostMeter = document.getElementById("boostMeter");
-  var mapSelf = document.getElementById("mapSelf");
-  var lapValueEl = document.getElementById("lapValue");
+        /* ---------------- HUD simulation loop ---------------- */
+        var speedEl = document.getElementById('speedValue');
+        var gearEl = document.getElementById('gearValue');
+        var needleGroup = document.getElementById('needleGroup');
+        var gaugeFill = document.getElementById('gaugeFill');
+        var deltaEl = document.getElementById('deltaReadout');
+        var boostFill = document.getElementById('boostFill');
+        var boostMeter = document.getElementById('boostMeter');
+        var mapSelf = document.getElementById('mapSelf');
+        var lapValueEl = document.getElementById('lapValue');
 
-  var MAX_SPEED = 220;
-  var lap = 2, totalLaps = 3, lapMs = 8400; // lapMs seeded mid-lap for a livelier first frame
-  var last = null;
+        var MAX_SPEED = 220;
+        var lap = 2,
+          totalLaps = 3,
+          lapMs = 8400; // lapMs seeded mid-lap for a livelier first frame
+        var last = null;
 
-  function frame(ts) {
-    if (last === null) last = ts;
-    var dt = ts - last; last = ts;
+        function frame(ts) {
+          if (last === null) last = ts;
+          var dt = ts - last;
+          last = ts;
 
-    // Speed: smooth oscillation to keep the gauge alive without user input.
-    var speed = 130 + Math.sin(ts * 0.00045) * 88;
-    speed = Math.max(20, Math.min(MAX_SPEED, speed));
-    var percent = speed / MAX_SPEED;
+          // Speed: smooth oscillation to keep the gauge alive without user input.
+          var speed = 130 + Math.sin(ts * 0.00045) * 88;
+          speed = Math.max(20, Math.min(MAX_SPEED, speed));
+          var percent = speed / MAX_SPEED;
 
-    speedEl.textContent = Math.round(speed);
-    gearEl.textContent = speed < 15 ? "N" : String(Math.min(6, Math.floor(speed / 34) + 1));
+          speedEl.textContent = Math.round(speed);
+          gearEl.textContent = speed < 15 ? 'N' : String(Math.min(6, Math.floor(speed / 34) + 1));
 
-    if (!reduceMotion) {
-      var angle = -90 + percent * 180;
-      needleGroup.setAttribute("transform", "rotate(" + angle.toFixed(1) + " 100 110)");
-      gaugeFill.style.strokeDashoffset = (100 - percent * 100).toFixed(1);
-    } else {
-      needleGroup.setAttribute("transform", "rotate(" + (-90 + percent * 180).toFixed(1) + " 100 110)");
-      gaugeFill.style.strokeDashoffset = (100 - percent * 100).toFixed(1);
-    }
+          if (!reduceMotion) {
+            var angle = -90 + percent * 180;
+            needleGroup.setAttribute('transform', 'rotate(' + angle.toFixed(1) + ' 100 110)');
+            gaugeFill.style.strokeDashoffset = (100 - percent * 100).toFixed(1);
+          } else {
+            needleGroup.setAttribute('transform', 'rotate(' + (-90 + percent * 180).toFixed(1) + ' 100 110)');
+            gaugeFill.style.strokeDashoffset = (100 - percent * 100).toFixed(1);
+          }
 
-    // Delta readout (sim density only, but keep it updating regardless of visibility).
-    var delta = Math.sin(ts * 0.00028) * 0.6;
-    deltaEl.innerHTML = (delta <= 0 ? "−" : "+") + Math.abs(delta).toFixed(2) + "<span class=\"unit\">s</span>";
-    deltaEl.classList.toggle("behind", delta > 0);
+          // Delta readout (sim density only, but keep it updating regardless of visibility).
+          var delta = Math.sin(ts * 0.00028) * 0.6;
+          deltaEl.innerHTML =
+            (delta <= 0 ? '−' : '+') + Math.abs(delta).toFixed(2) + '<span class="unit">s</span>';
+          deltaEl.classList.toggle('behind', delta > 0);
 
-    // Boost: auto-cycles, or holds "ready" briefly after the demo button fires.
-    var boostPct;
-    if (boostOverride > 0) {
-      boostOverride -= dt;
-      boostPct = 100;
-    } else {
-      boostPct = (ts % 7000) / 7000 * 100;
-    }
-    boostFill.style.width = boostPct.toFixed(1) + "%";
-    boostMeter.classList.toggle("ready", boostPct >= 99);
+          // Boost: auto-cycles, or holds "ready" briefly after the demo button fires.
+          var boostPct;
+          if (boostOverride > 0) {
+            boostOverride -= dt;
+            boostPct = 100;
+          } else {
+            boostPct = ((ts % 7000) / 7000) * 100;
+          }
+          boostFill.style.width = boostPct.toFixed(1) + '%';
+          boostMeter.classList.toggle('ready', boostPct >= 99);
 
-    // Minimap self-marker drifts around the track ellipse.
-    var a = (ts * 0.00022) % (Math.PI * 2);
-    var mx = 60 + 50 * Math.cos(a);
-    var my = 40 + 30 * Math.sin(a);
-    mapSelf.setAttribute("x", (mx - 3.4).toFixed(1));
-    mapSelf.setAttribute("y", (my - 3.4).toFixed(1));
-    mapSelf.setAttribute("transform", "rotate(45 " + mx.toFixed(1) + " " + my.toFixed(1) + ")");
+          // Minimap self-marker drifts around the track ellipse.
+          var a = (ts * 0.00022) % (Math.PI * 2);
+          var mx = 60 + 50 * Math.cos(a);
+          var my = 40 + 30 * Math.sin(a);
+          mapSelf.setAttribute('x', (mx - 3.4).toFixed(1));
+          mapSelf.setAttribute('y', (my - 3.4).toFixed(1));
+          mapSelf.setAttribute('transform', 'rotate(45 ' + mx.toFixed(1) + ' ' + my.toFixed(1) + ')');
 
-    // Lap progression, sped up for demo purposes; announces the final lap once.
-    lapMs += dt;
-    if (lapMs > 14000) {
-      lapMs = 0;
-      lap = lap < totalLaps ? lap + 1 : 1;
-      lapValueEl.textContent = lap;
-      if (lap === totalLaps) flashBanner("FINAL LAP");
-    }
+          // Lap progression, sped up for demo purposes; announces the final lap once.
+          lapMs += dt;
+          if (lapMs > 14000) {
+            lapMs = 0;
+            lap = lap < totalLaps ? lap + 1 : 1;
+            lapValueEl.textContent = lap;
+            if (lap === totalLaps) flashBanner('FINAL LAP');
+          }
 
-    requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
+          requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
 
-  /* ---------------- Garage: livery swatches ---------------- */
-  var carBody = document.getElementById("carBody");
-  document.querySelectorAll(".swatch").forEach(function (sw) {
-    sw.addEventListener("click", function () {
-      document.querySelectorAll(".swatch").forEach(function (s) { s.classList.remove("active"); });
-      sw.classList.add("active");
-      carBody.style.setProperty("--car-color", sw.dataset.color);
-    });
-  });
+        /* ---------------- Garage: livery swatches ---------------- */
+        var carBody = document.getElementById('carBody');
+        document.querySelectorAll('.swatch').forEach(function (sw) {
+          sw.addEventListener('click', function () {
+            document.querySelectorAll('.swatch').forEach(function (s) {
+              s.classList.remove('active');
+            });
+            sw.classList.add('active');
+            carBody.style.setProperty('--car-color', sw.dataset.color);
+          });
+        });
 
-  /* ---------------- Garage: fleet ---------------- */
-  var cars = [
-    { name: "MERIDIAN GT-R", cls: "S CLASS · 780 HP", speed: 82, accel: 70, handling: 64, boost: 90, owned: true },
-    { name: "DUSKRUNNER RX", cls: "A CLASS · 620 HP", speed: 68, accel: 78, handling: 82, boost: 60, owned: true },
-    { name: "IRONVALE ST", cls: "B CLASS · 410 HP", speed: 50, accel: 55, handling: 90, boost: 40, owned: true },
-    { name: "VECTOR NINE", cls: "S CLASS · 910 HP", speed: 95, accel: 88, handling: 58, boost: 75, owned: true },
-    { name: "???", cls: "Reach Rank 12", owned: false },
-    { name: "???", cls: "Reach Rank 18", owned: false }
-  ];
-  var fleetGrid = document.getElementById("fleetGrid");
-  var carName = document.getElementById("carName");
-  var carClass = document.getElementById("carClass");
-  var bars = { speed: document.getElementById("statSpeed"), accel: document.getElementById("statAccel"), handling: document.getElementById("statHandling"), boost: document.getElementById("statBoost") };
+        /* ---------------- Garage: fleet ---------------- */
+        var cars = [
+          {
+            name: 'MERIDIAN GT-R',
+            cls: 'S CLASS · 780 HP',
+            speed: 82,
+            accel: 70,
+            handling: 64,
+            boost: 90,
+            owned: true,
+          },
+          {
+            name: 'DUSKRUNNER RX',
+            cls: 'A CLASS · 620 HP',
+            speed: 68,
+            accel: 78,
+            handling: 82,
+            boost: 60,
+            owned: true,
+          },
+          {
+            name: 'IRONVALE ST',
+            cls: 'B CLASS · 410 HP',
+            speed: 50,
+            accel: 55,
+            handling: 90,
+            boost: 40,
+            owned: true,
+          },
+          {
+            name: 'VECTOR NINE',
+            cls: 'S CLASS · 910 HP',
+            speed: 95,
+            accel: 88,
+            handling: 58,
+            boost: 75,
+            owned: true,
+          },
+          { name: '???', cls: 'Reach Rank 12', owned: false },
+          { name: '???', cls: 'Reach Rank 18', owned: false },
+        ];
+        var fleetGrid = document.getElementById('fleetGrid');
+        var carName = document.getElementById('carName');
+        var carClass = document.getElementById('carClass');
+        var bars = {
+          speed: document.getElementById('statSpeed'),
+          accel: document.getElementById('statAccel'),
+          handling: document.getElementById('statHandling'),
+          boost: document.getElementById('statBoost'),
+        };
 
-  cars.forEach(function (car) {
-    var card = document.createElement("button");
-    card.type = "button";
-    card.className = "fleet-card" + (car.owned ? "" : " locked");
-    card.innerHTML = "<span class=\"fc-name\">" + car.name + "</span><span class=\"fc-class\">" + car.cls + "</span>";
-    if (car.owned) {
-      card.addEventListener("click", function () {
-        carName.textContent = car.name;
-        carClass.textContent = car.cls;
-        bars.speed.style.width = car.speed + "%";
-        bars.accel.style.width = car.accel + "%";
-        bars.handling.style.width = car.handling + "%";
-        bars.boost.style.width = car.boost + "%";
-      });
-    } else {
-      card.setAttribute("aria-disabled", "true");
-    }
-    fleetGrid.appendChild(card);
-  });
-})();
-</script>
-</body>
+        cars.forEach(function (car) {
+          var card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'fleet-card' + (car.owned ? '' : ' locked');
+          card.innerHTML =
+            '<span class="fc-name">' + car.name + '</span><span class="fc-class">' + car.cls + '</span>';
+          if (car.owned) {
+            card.addEventListener('click', function () {
+              carName.textContent = car.name;
+              carClass.textContent = car.cls;
+              bars.speed.style.width = car.speed + '%';
+              bars.accel.style.width = car.accel + '%';
+              bars.handling.style.width = car.handling + '%';
+              bars.boost.style.width = car.boost + '%';
+            });
+          } else {
+            card.setAttribute('aria-disabled', 'true');
+          }
+          fleetGrid.appendChild(card);
+        });
+      })();
+    </script>
+  </body>
 </html>

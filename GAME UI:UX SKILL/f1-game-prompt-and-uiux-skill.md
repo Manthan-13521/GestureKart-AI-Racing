@@ -85,7 +85,9 @@ over unchanged.
 Reusable principles for this game or any similar high-speed racing project.
 
 ### Core constraint: the player is looking at the track, not the UI
+
 Everything in-race has to be readable in peripheral vision at 200+ km/h.
+
 - Put critical info (speed, gear, position) in a fixed HUD zone the eye can
   glance at without hunting — usually bottom-center or bottom-right for
   speed/gear, top-center or top-left for position/lap.
@@ -96,6 +98,7 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
   faster than a decorative one at a glance.
 
 ### Color coding, consistently
+
 - Reserve one color for "you're doing well" (grip/tires green), one for
   "warning" (amber — tire wear, fuel, DRS available), one for "critical"
   (red — damage, off-track, last lap). Don't reuse these hues for anything
@@ -105,6 +108,7 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
   aren't confused in the heat of a race.
 
 ### Motion and feedback
+
 - Every player action needs immediate feedback: gear change flashes the
   gear indicator, DRS activation changes the DRS icon state instantly (no
   more than ~100ms delay), overtakes trigger a brief position-change
@@ -116,6 +120,7 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
   reserve animation for state changes so it stays meaningful.
 
 ### Menu flow — keep it shallow and fast
+
 - Racing games are replayed constantly, so minimize clicks between "I want
   to race" and "I'm racing." Ideal flow: Main Menu → Quick Race (1 click)
   as a shortcut, with the full Team/Track/Settings path available for
@@ -127,13 +132,15 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
   static thumbnails.
 
 ### Data density without clutter
+
 - Post-race screens (standings, sector times, lap chart) can be dense —
-  that's expected and desired here, this is the moment players *want* to
+  that's expected and desired here, this is the moment players _want_ to
   read details. Use tables/graphs, not prose.
 - In-race, invert that: minimum viable data only. A toggle for "detailed
   HUD" vs "minimal HUD" serves both casual and hardcore players.
 
 ### Accessibility (don't treat as optional)
+
 - Colorblind-safe palettes for position/tire/DRS indicators (test
   red/green combos specifically — the most common form).
 - Fully remappable controls, and support for both analog (gamepad/wheel)
@@ -142,6 +149,7 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
 - Adjustable HUD scale for readability on both phone screens and TVs.
 
 ### Audio-visual pairing
+
 - Pair every major HUD state change with a short, distinct sound (DRS
   activation, lap complete, final lap warning, position gained/lost) —
   players react faster to audio cues than visual ones while focused on
@@ -150,6 +158,7 @@ Everything in-race has to be readable in peripheral vision at 200+ km/h.
   speedometer players use unconsciously.
 
 ### Quick checklist before shipping a racing HUD
+
 - [ ] Can a new player identify their position, speed, and lap in under
       half a second?
 - [ ] Do all critical warnings (damage, off-track, tire critical) use the
