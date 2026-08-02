@@ -18,6 +18,11 @@ import { ReplayRuntime, GhostHud } from './replay';
 import type { ReplayOutcome } from './replay';
 import type { TrackId } from './screens/TrackSelectScreen';
 import type { ModeId } from './screens/ModeSelectScreen';
+import { AIRuntime } from './ai/AIRuntime';
+import { AIHud } from './ai/AIHud';
+import { RaceDirector } from './game/RaceDirector';
+import { tournamentManager } from './game/TournamentManager';
+import { victoryCeremony } from './ui/VictoryCeremony';
 import './ui/ui.css';
 
 // ─── Core systems ──────────────────────────────────────────────────
@@ -94,6 +99,10 @@ let tracker: HandTracker;
 let cameraActive = false;
 let handTrackingActive = false;
 let replayRuntime: ReplayRuntime;
+let aiRuntime: AIRuntime | null = null;
+let aiHud: AIHud | null = null;
+let raceDirector: RaceDirector | null = null;
+let currentModeId: ModeId = 'survival';
 
 // Countdown
 let countdownActive = false;
@@ -102,6 +111,7 @@ let countdownInterval: ReturnType<typeof setInterval> | null = null;
 let overlayFps = 0;
 let fpsCounter = 0;
 let lastFpsTime = performance.now();
+let lastAiTickTime = performance.now();
 
 // ─── Panel toggle ───────────────────────────────────────────────────
 panelToggle.addEventListener('click', () => {
@@ -389,7 +399,7 @@ bus.on(AppEvents.gyroToggle, (on: boolean) => {
   saveManager.gyroscopeMode = on;
 });
 
-// ─── Screen state → overlays ───────────────────────────────────────
+// ─── Screen state → overlays ───────────────────────────────────────────
 stateMachine.onChange((from, to) => {
   ui.sync(to);
   if (to === 'gameover') {
@@ -401,14 +411,92 @@ stateMachine.onChange((from, to) => {
     const outcome = replayRuntime.finish(score, state.raceTime);
     updateResultsGhostLine(outcome);
     SoundHooks.raceFinish();
+
+    const ceremonyContainer = document.getElementById('results-ceremony-container');
+    if (ceremonyContainer) {
+      if (currentModeId === 'ai-race') {
+        const finishPos = raceDirector ? raceDirector.getState().position : 6;
+        const res = tournamentManager.recordFinish(finishPos);
+        victoryCeremony.show(ceremonyContainer, {
+          position: finishPos,
+          pointsAwarded: res.pointsAwarded,
+          coinsAwarded: res.coinsAwarded,
+          xpAwarded: res.xpAwarded,
+          promoted: res.promoted,
+          finishedChampionship: res.finishedChampionship,
+          averageFinish: res.averageFinish,
+          division: tournamentManager.activeState.division,
+          nextTrackName: null,
+        });
+      } else {
+        // Reset to default standard results screen layout
+        ceremonyContainer.innerHTML = `
+          <div class="results-crown">&#127942;</div>
+          <div class="results-title">RACE COMPLETE</div>
+          <div class="results-score-row">
+            <span class="results-label">SCORE</span>
+            <span class="results-score" id="final-score">${score}</span>
+          </div>
+          <div class="results-ghost-line ${outcome.ghostPresent ? '' : 'hidden'}" id="results-ghost-line"></div>
+        `;
+        // Make sure ghost line is correctly updated since we reset innerHTML
+        const gl = ceremonyContainer.querySelector('#results-ghost-line');
+        if (gl) {
+          gl.textContent = resultsGhostLine.textContent;
+          if (resultsGhostLine.classList.contains('hidden')) gl.classList.add('hidden');
+          else gl.classList.remove('hidden');
+        }
+      }
+    }
+
+    // Tear down AI race systems
+    if (aiRuntime) {
+      aiRuntime.dispose();
+      aiRuntime = null;
+    }
+    if (aiHud) {
+      aiHud.setVisible(false);
+    }
+    if (raceDirector) {
+      raceDirector.setGameOver();
+    }
   }
 });
 
-// ─── Race start (single path: resets game, starts replay clock) ────
+// ─── Race start (single path: resets game, starts replay + AI clocks) ───
 function startGame(): void {
+  victoryCeremony.stop();
+  const isAIRace = currentModeId === 'ai-race';
+
+  // Configure game mode before start()
+  game.setRaceMode(isAIRace ? 'ai-race' : currentModeId === 'versus' ? 'versus' : 'survival');
   game.start();
   stateMachine.set('racing');
   replayRuntime.begin(game.getState().raceDuration);
+
+  // ─ AI Race: spin up the grid and HUD ───────────────────────────────
+  if (isAIRace) {
+    if (aiRuntime) aiRuntime.dispose();
+    aiRuntime = new AIRuntime({
+      scene: game.scene3d,
+      carCount: 5,
+      difficulty: 0.5,
+      trackDistance: 2400,
+    });
+    aiRuntime.start();
+
+    if (!aiHud) aiHud = new AIHud();
+    aiHud.setVisible(true);
+
+    if (!raceDirector) raceDirector = new RaceDirector();
+    raceDirector.start(1, 6); // 1 lap, 6 total cars
+  } else {
+    if (aiRuntime) {
+      aiRuntime.dispose();
+      aiRuntime = null;
+    }
+    if (aiHud) aiHud.setVisible(false);
+  }
 }
 
 function updateResultsGhostLine(outcome: ReplayOutcome): void {
@@ -621,6 +709,47 @@ function gameLoop(): void {
     }
 
     replayRuntime.tick(state.raceTime, game.cameraX, state.speed);
+
+    // ─── AI Race tick ───────────────────────────────────────────────
+    if (aiRuntime && state.started && !state.gameOver) {
+      const now2 = performance.now();
+      const aiDt = Math.min((now2 - lastAiTickTime) / 1000, 0.1);
+      lastAiTickTime = now2;
+
+      // moveAmount mirrors Game.update() world movement
+      const moveAmount = state.speed * aiDt;
+      aiRuntime.tick(aiDt, game.playerDistance, state.speed, moveAmount);
+
+      // Check AI collision with player
+      if (aiRuntime.checkPlayerCollision(game.cameraX, game.playerDistance)) {
+        game.setGameOver();
+      }
+
+      // Update RaceDirector standings
+      if (raceDirector) {
+        const snapshots = aiRuntime.getSnapshots(game.playerDistance, state.lap);
+        raceDirector.update(aiDt, snapshots);
+        const raceState = raceDirector.getState();
+        game.setPosition(raceState.position, raceState.totalCars);
+      }
+
+      // Update AI HUD
+      if (aiHud) {
+        aiHud.update({
+          position: raceDirector?.getState().position ?? state.position,
+          totalCars: raceDirector?.getState().totalCars ?? state.totalCars,
+          gapAhead: null,
+          gapBehind: null,
+          draftZone: 'none',
+          draftBonus: 0,
+          intent: '',
+          isOvertaking: false,
+          lapTime: state.raceTime,
+          lap: state.lap,
+          totalLaps: state.totalLaps,
+        });
+      }
+    }
   }
 
   requestAnimationFrame(gameLoop);
@@ -828,6 +957,7 @@ async function init(): Promise<void> {
     stateMachine.set('ready');
     cancelCountdown();
     replayRuntime.arm(trackId, modeId);
+    currentModeId = modeId;
     startCountdown(startGame);
     notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
   };
@@ -845,6 +975,7 @@ async function init(): Promise<void> {
 
   // Results buttons
   resultsRetry.addEventListener('click', () => {
+    victoryCeremony.stop();
     cancelCountdown();
     const last = lastSelection();
     replayRuntime.arm(last.track, last.mode);
@@ -852,6 +983,7 @@ async function init(): Promise<void> {
   });
 
   resultsMenu.addEventListener('click', () => {
+    victoryCeremony.stop();
     cancelCountdown();
     stateMachine.set('landing');
     replayRuntime.abort();
@@ -860,6 +992,7 @@ async function init(): Promise<void> {
   });
 
   navTitle.addEventListener('click', () => {
+    victoryCeremony.stop();
     stateMachine.set('landing');
     if (game) game.setGameOver();
     replayRuntime.abort();
@@ -900,6 +1033,8 @@ async function init(): Promise<void> {
     game?.dispose();
     audioManager.dispose();
     replayRuntime?.dispose();
+    aiRuntime?.dispose();
+    aiHud?.dispose();
   });
 
   updateStatus();

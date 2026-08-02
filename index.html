@@ -362,13 +362,15 @@
           <!-- ─── Game Over Overlay ─── -->
           <div class="game-overlay" id="game-over-overlay">
             <div class="overlay-content overlay-results">
-              <div class="results-crown">&#127942;</div>
-              <div class="results-title">RACE COMPLETE</div>
-              <div class="results-score-row">
-                <span class="results-label">SCORE</span>
-                <span class="results-score" id="final-score">0</span>
+              <div id="results-ceremony-container">
+                <div class="results-crown">&#127942;</div>
+                <div class="results-title">RACE COMPLETE</div>
+                <div class="results-score-row">
+                  <span class="results-label">SCORE</span>
+                  <span class="results-score" id="final-score">0</span>
+                </div>
+                <div class="results-ghost-line hidden" id="results-ghost-line"></div>
               </div>
-              <div class="results-ghost-line hidden" id="results-ghost-line"></div>
               <div class="results-divider"></div>
               <div class="results-actions">
                 <button class="results-btn results-btn-primary" id="results-retry">RACE AGAIN</button>
