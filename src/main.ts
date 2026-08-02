@@ -8,6 +8,15 @@ import { AudioManager } from './managers/AudioManager';
 import { SaveManager } from './managers/SaveManager';
 import { InputManager } from './managers/InputManager';
 import { UIManager } from './managers/UIManager';
+import { NavigationSystem } from './ui/core/NavigationSystem';
+import { FocusRing } from './ui/core/FocusRing';
+import { NotificationSystem } from './ui/core/NotificationSystem';
+import { SoundHooks } from './ui/core/SoundHooks';
+import { ThemeManager } from './ui/ThemeManager';
+import { buildFlow, type FlowApi } from './screens/flow';
+import type { TrackId } from './screens/TrackSelectScreen';
+import type { ModeId } from './screens/ModeSelectScreen';
+import './ui/ui.css';
 
 // ─── Core systems ──────────────────────────────────────────────────
 const resources = new ResourceManager();
@@ -17,11 +26,9 @@ const saveManager = new SaveManager();
 const audioManager = new AudioManager();
 const inputManager = new InputManager(bus);
 const ui = new UIManager();
+const themeManager = new ThemeManager(saveManager.a11y);
 
 // ─── DOM refs ───────────────────────────────────────────────────────
-const landingPlay = document.getElementById('landing-play')!;
-const landingSettings = document.getElementById('landing-settings')!;
-const landingLearn = document.getElementById('landing-learn')!;
 const navTitle = document.querySelector('.nav-title') as HTMLElement;
 const video = document.getElementById('webcam') as HTMLVideoElement;
 const camOverlay = document.getElementById('cam-overlay') as HTMLCanvasElement;
@@ -70,15 +77,6 @@ const collisionFlash = document.getElementById('collision-flash')!;
 
 const resultsRetry = document.getElementById('results-retry')!;
 const resultsMenu = document.getElementById('results-menu')!;
-
-const menuStart = document.getElementById('menu-start')!;
-const menuHowtoplay = document.getElementById('menu-howtoplay')!;
-const menuSettings = document.getElementById('menu-settings')!;
-const htpBack = document.getElementById('htp-back')!;
-const settingsBack = document.getElementById('settings-back')!;
-const menuSensitivitySlider = document.getElementById('menu-sensitivity-slider') as HTMLInputElement;
-const menuSensitivityValue = document.getElementById('menu-sensitivity-value')!;
-const menuAutoToggle = document.getElementById('menu-auto-toggle')!;
 
 const touchAuto = document.getElementById('touch-auto')!;
 const touchModeLabel = document.getElementById('touch-mode-label')!;
@@ -373,8 +371,6 @@ function updateStatus(): void {
 function syncAutoUI(on: boolean): void {
   touchAuto.classList.toggle('active', on);
   uBox.classList.toggle('active', on);
-  menuAutoToggle.textContent = on ? 'ON' : 'OFF';
-  menuAutoToggle.classList.toggle('active', on);
   updateStatus();
 }
 
@@ -733,42 +729,85 @@ async function init(): Promise<void> {
   window.addEventListener('keydown', initAudioOnce, { once: true });
   window.addEventListener('touchstart', initAudioOnce, { once: true });
 
-  // ─── Menu flow ──────────────────────────────────────────────
-  menuStart.addEventListener('click', () => {
+  // ─── Menu flow (UI framework) ─────────────────────────────────
+  SoundHooks.enabled = saveManager.uiSounds;
+  audioManager.masterVolume = saveManager.masterVolume;
+  inputManager.autoAccelerate = saveManager.autoAccelerate;
+  inputManager.gyroscopeMode = saveManager.gyroscopeMode;
+
+  const uiRoot = document.getElementById('ui-root')!;
+  const nav = new NavigationSystem(uiRoot);
+  const notify = NotificationSystem.getInstance();
+  FocusRing.getInstance();
+
+  const settingsApi: FlowApi['settings'] = {
+    get: () => ({
+      a11y: themeManager.get(),
+      sensitivity: saveManager.sensitivity,
+      autoAccelerate: inputManager.autoAccelerate,
+      gyroscopeMode: inputManager.gyroscopeMode,
+      graphicsQuality: saveManager.graphicsQuality,
+      shadows: saveManager.shadows,
+      particles: saveManager.particles,
+      masterVolume: audioManager.masterVolume,
+      uiSounds: saveManager.uiSounds,
+    }),
+    save: (patch) => {
+      if (patch.a11y) {
+        themeManager.set(patch.a11y);
+        saveManager.setA11y(patch.a11y);
+      }
+      if (patch.sensitivity !== undefined) {
+        saveManager.sensitivity = patch.sensitivity;
+        applySensitivity(patch.sensitivity);
+        sensitivitySlider.value = `${patch.sensitivity}`;
+      }
+      if (patch.autoAccelerate !== undefined) inputManager.setAutoAccelerate(patch.autoAccelerate);
+      if (patch.gyroscopeMode !== undefined) {
+        inputManager.gyroscopeMode = patch.gyroscopeMode;
+        saveManager.gyroscopeMode = patch.gyroscopeMode;
+      }
+      if (patch.masterVolume !== undefined) {
+        audioManager.masterVolume = patch.masterVolume;
+        saveManager.masterVolume = patch.masterVolume;
+      }
+      if (patch.uiSounds !== undefined) {
+        SoundHooks.enabled = patch.uiSounds;
+        saveManager.uiSounds = patch.uiSounds;
+      }
+      if (patch.graphicsQuality !== undefined) saveManager.graphicsQuality = patch.graphicsQuality;
+      if (patch.shadows !== undefined) saveManager.shadows = patch.shadows;
+      if (patch.particles !== undefined) saveManager.particles = patch.particles;
+    },
+    calibrateGesture: () => {
+      notify.success('Calibration', 'Hold your hands in the center for 2 seconds');
+      setTimeout(() => notify.success('Calibration saved'), 2000);
+    },
+    onBack: () => void nav.go('menu', {}, { transition: 'slide-right' }),
+  };
+
+  const startRace = (trackId: TrackId, modeId: ModeId): void => {
+    uiRoot.hidden = true;
+    inputManager.setAutoAccelerate(true);
     stateMachine.set('ready');
     cancelCountdown();
     startCountdown(() => {
       game.start();
       stateMachine.set('racing');
     });
-  });
+    notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
+  };
 
-  menuHowtoplay.addEventListener('click', () => stateMachine.set('howtoplay'));
-  htpBack.addEventListener('click', () => stateMachine.set('menu'));
+  const showMenu = (): void => {
+    uiRoot.hidden = false;
+  };
 
-  menuSettings.addEventListener('click', () => {
-    menuSensitivitySlider.value = sensitivitySlider.value;
-    menuSensitivityValue.textContent = `${sensitivitySlider.value}%`;
-    menuAutoToggle.textContent = inputManager.autoAccelerate ? 'ON' : 'OFF';
-    menuAutoToggle.classList.toggle('active', inputManager.autoAccelerate);
-    stateMachine.set('settings');
+  buildFlow(nav, {
+    getBestScore: () => saveManager.bestScore,
+    settings: settingsApi,
+    startRace,
   });
-
-  settingsBack.addEventListener('click', () => {
-    const val = parseInt(menuSensitivitySlider.value, 10);
-    sensitivitySlider.value = `${val}`;
-    applySensitivity(val);
-    stateMachine.set('menu');
-  });
-
-  menuSensitivitySlider.addEventListener('input', () => {
-    const val = parseInt(menuSensitivitySlider.value, 10);
-    menuSensitivityValue.textContent = `${val}%`;
-  });
-
-  menuAutoToggle.addEventListener('click', () => {
-    inputManager.setAutoAccelerate(!inputManager.autoAccelerate);
-  });
+  void nav.go('splash');
 
   // Results buttons
   resultsRetry.addEventListener('click', () => {
@@ -782,29 +821,15 @@ async function init(): Promise<void> {
   resultsMenu.addEventListener('click', () => {
     cancelCountdown();
     stateMachine.set('landing');
+    showMenu();
+    void nav.reset('menu');
   });
-
-  faceLabel.style.display = 'none';
-  handLeftLabel.style.display = 'none';
-  handRightLabel.style.display = 'none';
-
-  // ─── Landing page controls ────────────────────────────────────
-  landingPlay.addEventListener('click', () => {
-    inputManager.setAutoAccelerate(true);
-    stateMachine.set('ready');
-    if (game) game.setHandData(0.5, 2);
-    startCountdown(() => {
-      game.start();
-      stateMachine.set('racing');
-    });
-  });
-
-  landingSettings.addEventListener('click', () => stateMachine.set('settings'));
-  landingLearn.addEventListener('click', () => stateMachine.set('howtoplay'));
 
   navTitle.addEventListener('click', () => {
     stateMachine.set('landing');
     if (game) game.setGameOver();
+    showMenu();
+    void nav.reset('menu');
   });
   navTitle.style.cursor = 'pointer';
 

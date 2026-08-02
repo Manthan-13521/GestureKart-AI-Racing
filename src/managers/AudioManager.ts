@@ -4,6 +4,18 @@ export class AudioManager {
   private engineGain: GainNode | null = null;
   private subOsc: OscillatorNode | null = null;
   private subGain: GainNode | null = null;
+  private volume = 1;
+
+  get masterVolume(): number {
+    return this.volume;
+  }
+
+  set masterVolume(v: number) {
+    this.volume = Math.max(0, Math.min(1, v));
+    if (this.ctx && this.ctx.state !== 'suspended') {
+      this.refreshEngine();
+    }
+  }
 
   init(): void {
     if (this.ctx) return;
@@ -37,8 +49,8 @@ export class AudioManager {
     if (!this.engineOsc || !this.engineGain || !this.subOsc || !this.subGain || !this.ctx) return;
     if (this.ctx.state === 'suspended') this.ctx.resume();
     const freq = 60 + speed * 80;
-    const vol = speed > 0.1 ? 0.04 + speed * 0.02 : 0;
-    const subVol = speed > 0.1 ? 0.06 + speed * 0.015 : 0;
+    const vol = speed > 0.1 ? (0.04 + speed * 0.02) * this.volume : 0;
+    const subVol = speed > 0.1 ? (0.06 + speed * 0.015) * this.volume : 0;
     this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
     this.engineGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.1);
     this.subOsc.frequency.setTargetAtTime(freq * 0.5, this.ctx.currentTime, 0.15);
@@ -52,12 +64,17 @@ export class AudioManager {
     const gain = this.ctx.createGain();
     osc.type = 'square';
     osc.frequency.value = 120;
-    gain.gain.value = 0.15;
+    gain.gain.value = 0.15 * this.volume;
     osc.connect(gain);
     gain.connect(this.ctx.destination);
     osc.start();
     gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.3);
     osc.stop(this.ctx.currentTime + 0.3);
+  }
+
+  private refreshEngine(): void {
+    const speed = 0;
+    this.updateEngineSound(speed);
   }
 
   stopEngine(): void {

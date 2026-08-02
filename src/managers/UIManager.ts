@@ -6,11 +6,12 @@ function el<T extends HTMLElement>(id: string): T {
   return node as T;
 }
 
+/**
+ * Owns the in-game overlays only (ready / game-over / countdown).
+ * Menu screens (landing / menu / howtoplay / settings) are rendered by
+ * the UI framework's NavigationSystem.
+ */
 export class UIManager {
-  readonly landing = el('landing');
-  readonly menu = el('menu-overlay');
-  readonly howtoplay = el('howtoplay-overlay');
-  readonly settings = el('settings-overlay');
   readonly ready = el('game-overlay');
   readonly gameover = el('game-over-overlay');
   readonly countdown = el('countdown-overlay');
@@ -18,10 +19,6 @@ export class UIManager {
   readonly finalScore = el('final-score');
 
   sync(state: AppState): void {
-    this.landing.classList.toggle('visible', state === 'landing');
-    this.menu.classList.toggle('visible', state === 'menu');
-    this.howtoplay.classList.toggle('visible', state === 'howtoplay');
-    this.settings.classList.toggle('visible', state === 'settings');
     this.ready.classList.toggle('visible', state === 'ready');
     this.gameover.classList.toggle('visible', state === 'gameover');
   }

@@ -37,7 +37,9 @@ describe('SaveManager', () => {
     const sm = new SaveManager();
     expect(sm.sensitivity).toBe(30);
     expect(sm.gyroscopeMode).toBe(false);
-    expect(sm.version).toBe(1);
+    expect(sm.version).toBe(2);
+    expect(sm.masterVolume).toBe(1);
+    expect(sm.a11y.reducedMotion).toBe(false);
   });
 
   it('only keeps the best score', () => {

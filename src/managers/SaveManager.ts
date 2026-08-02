@@ -4,9 +4,25 @@ export interface SaveData {
   autoAccelerate: boolean;
   gyroscopeMode: boolean;
   bestScore: number;
+  highContrast: boolean;
+  colorblind: boolean;
+  largeHud: boolean;
+  reducedMotion: boolean;
+  masterVolume: number;
+  uiSounds: boolean;
+  graphicsQuality: 'performance' | 'balanced' | 'quality';
+  shadows: boolean;
+  particles: boolean;
 }
 
-const SAVE_VERSION = 1;
+export interface A11ySaveData {
+  highContrast: boolean;
+  colorblind: boolean;
+  largeHud: boolean;
+  reducedMotion: boolean;
+}
+
+const SAVE_VERSION = 2;
 
 const DEFAULT_DATA: SaveData = {
   version: SAVE_VERSION,
@@ -14,6 +30,15 @@ const DEFAULT_DATA: SaveData = {
   autoAccelerate: false,
   gyroscopeMode: false,
   bestScore: 0,
+  highContrast: false,
+  colorblind: false,
+  largeHud: false,
+  reducedMotion: false,
+  masterVolume: 1,
+  uiSounds: true,
+  graphicsQuality: 'balanced',
+  shadows: true,
+  particles: true,
 };
 
 export class SaveManager {
@@ -56,6 +81,68 @@ export class SaveManager {
 
   get version(): number {
     return this.data.version;
+  }
+
+  get a11y(): A11ySaveData {
+    return {
+      highContrast: this.data.highContrast,
+      colorblind: this.data.colorblind,
+      largeHud: this.data.largeHud,
+      reducedMotion: this.data.reducedMotion,
+    };
+  }
+
+  setA11y(patch: Partial<A11ySaveData>): void {
+    this.data.highContrast = patch.highContrast ?? this.data.highContrast;
+    this.data.colorblind = patch.colorblind ?? this.data.colorblind;
+    this.data.largeHud = patch.largeHud ?? this.data.largeHud;
+    this.data.reducedMotion = patch.reducedMotion ?? this.data.reducedMotion;
+    this.save();
+  }
+
+  get masterVolume(): number {
+    return this.data.masterVolume;
+  }
+
+  set masterVolume(v: number) {
+    this.data.masterVolume = v;
+    this.save();
+  }
+
+  get uiSounds(): boolean {
+    return this.data.uiSounds;
+  }
+
+  set uiSounds(v: boolean) {
+    this.data.uiSounds = v;
+    this.save();
+  }
+
+  get graphicsQuality(): SaveData['graphicsQuality'] {
+    return this.data.graphicsQuality;
+  }
+
+  set graphicsQuality(v: SaveData['graphicsQuality']) {
+    this.data.graphicsQuality = v;
+    this.save();
+  }
+
+  get shadows(): boolean {
+    return this.data.shadows;
+  }
+
+  set shadows(v: boolean) {
+    this.data.shadows = v;
+    this.save();
+  }
+
+  get particles(): boolean {
+    return this.data.particles;
+  }
+
+  set particles(v: boolean) {
+    this.data.particles = v;
+    this.save();
   }
 
   setBestScore(v: number): void {

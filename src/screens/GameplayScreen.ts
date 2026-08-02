@@ -1,0 +1,58 @@
+import { Screen } from '../ui/components/Screen';
+import { Button } from '../ui/components/Button';
+import { AnimationSystem } from '../ui/core/AnimationSystem';
+import { SoundHooks } from '../ui/core/SoundHooks';
+import type { TransitionKind } from '../ui/core/TransitionSystem';
+import type { TrackId } from './TrackSelectScreen';
+import type { ModeId } from './ModeSelectScreen';
+
+/**
+ * Pre-race staging screen: shows the chosen track + mode and hands off to
+ * the actual game via `startRace` (wired by the app shell).
+ */
+export class GameplayScreen extends Screen {
+  startRace: ((track: TrackId, mode: ModeId) => void) | null = null;
+
+  constructor() {
+    super('gameplay');
+  }
+
+  protected transition(): TransitionKind {
+    return 'fade';
+  }
+
+  protected build(_params: Record<string, unknown>): void {
+    const track = (this.params.track as TrackId) ?? 'cyber-city';
+    const mode = (this.params.mode as ModeId) ?? 'survival';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'screen-inner';
+    wrap.style.alignItems = 'center';
+
+    const title = document.createElement('h2');
+    title.className = 'screen-title';
+    title.textContent = `${track.replace(/-/g, ' ')} · ${mode.replace(/-/g, ' ')}`;
+    wrap.appendChild(title);
+
+    const hint = document.createElement('p');
+    hint.className = 'splash-hint';
+    hint.textContent = 'Hold tight — the lights are about to go out';
+    wrap.appendChild(hint);
+
+    const actions = document.createElement('div');
+    actions.className = 'menu-actions';
+    const startBtn = new Button('Start Race', { size: 'lg' });
+    startBtn.el.addEventListener('click', () => {
+      SoundHooks.confirm();
+      this.startRace?.(track, mode);
+    });
+    actions.appendChild(startBtn.el);
+    wrap.appendChild(actions);
+
+    this.el.appendChild(wrap);
+
+    void AnimationSystem.play(title, 'blur-in', { duration: 500 });
+    void AnimationSystem.play(hint, 'fade-in', { delay: 180 });
+    void AnimationSystem.play(startBtn.el, 'scale-in', { delay: 260 });
+  }
+}
