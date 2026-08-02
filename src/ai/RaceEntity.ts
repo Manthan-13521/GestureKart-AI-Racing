@@ -67,6 +67,7 @@ export abstract class RaceEntity {
   /**
    * Abstract: each entity type drives its own update logic.
    * @param dt Delta time in SECONDS.
+   * @param others All other entity snapshots this frame.
    */
-  abstract update(dt: number): void;
+  abstract update(dt: number, others?: EntityState[]): void;
 }
