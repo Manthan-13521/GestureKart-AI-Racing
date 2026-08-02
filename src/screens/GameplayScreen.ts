@@ -5,13 +5,14 @@ import { SoundHooks } from '../ui/core/SoundHooks';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
 import type { TrackId } from './TrackSelectScreen';
 import type { ModeId } from './ModeSelectScreen';
+import type { NetworkManager } from '../network/NetworkManager';
 
 /**
  * Pre-race staging screen: shows the chosen track + mode and hands off to
  * the actual game via `startRace` (wired by the app shell).
  */
 export class GameplayScreen extends Screen {
-  startRace: ((track: TrackId, mode: ModeId) => void) | null = null;
+  startRace: ((track: TrackId, mode: ModeId, network?: NetworkManager) => void) | null = null;
 
   constructor() {
     super('gameplay');
@@ -44,7 +45,7 @@ export class GameplayScreen extends Screen {
     const startBtn = new Button('Start Race', { size: 'lg' });
     startBtn.el.addEventListener('click', () => {
       SoundHooks.confirm();
-      this.startRace?.(track, mode);
+      this.startRace?.(track, mode, this.params.network as NetworkManager);
     });
     actions.appendChild(startBtn.el);
     wrap.appendChild(actions);

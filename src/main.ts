@@ -23,6 +23,8 @@ import { AIHud } from './ai/AIHud';
 import { RaceDirector } from './game/RaceDirector';
 import { tournamentManager } from './game/TournamentManager';
 import { victoryCeremony } from './ui/VictoryCeremony';
+import type { NetworkManager } from './network/NetworkManager';
+import { RemotePlayerManager } from './network/RemotePlayerManager';
 import './ui/ui.css';
 
 // ─── Core systems ──────────────────────────────────────────────────
@@ -103,6 +105,12 @@ let aiRuntime: AIRuntime | null = null;
 let aiHud: AIHud | null = null;
 let raceDirector: RaceDirector | null = null;
 let currentModeId: ModeId = 'survival';
+let activeNetwork: NetworkManager | null = null;
+let remotePlayers: RemotePlayerManager | null = null;
+
+// Multiplayer: throttle broadcast to ~20Hz
+let lastNetSendTime = 0;
+const NET_SEND_INTERVAL = 50; // ms
 
 // Countdown
 let countdownActive = false;
@@ -490,7 +498,27 @@ function startGame(): void {
 
     if (!raceDirector) raceDirector = new RaceDirector();
     raceDirector.start(1, 6); // 1 lap, 6 total cars
+  } else if (currentModeId === 'multiplayer' && activeNetwork) {
+    // Multiplayer: set up remote player visuals + listen for peer state
+    if (remotePlayers) remotePlayers.dispose();
+    remotePlayers = new RemotePlayerManager(game.scene3d);
+
+    activeNetwork.onMessage((_senderId, msg) => {
+      if ((msg as { type?: string }).type === 'player_state') {
+        const payload = (msg as { type: string; payload: unknown })
+          .payload as import('./network/RemotePlayerManager').RemotePlayerState;
+        remotePlayers?.receiveUpdate(payload);
+      }
+    });
+    activeNetwork.onPeerDisconnected((id) => remotePlayers?.remove(id));
+
+    if (!raceDirector) raceDirector = new RaceDirector();
+    raceDirector.start(1, activeNetwork.getConnections().length + 1);
   } else {
+    if (remotePlayers) {
+      remotePlayers.dispose();
+      remotePlayers = null;
+    }
     if (aiRuntime) {
       aiRuntime.dispose();
       aiRuntime = null;
@@ -749,6 +777,52 @@ function gameLoop(): void {
           totalLaps: state.totalLaps,
         });
       }
+    } // end if aiRuntime block
+
+    // ─── Multiplayer tick ────────────────────────────────────────────
+    if (
+      currentModeId === 'multiplayer' &&
+      activeNetwork &&
+      remotePlayers &&
+      state.started &&
+      !state.gameOver
+    ) {
+      const now2 = performance.now();
+      const mpDt = Math.min((now2 - lastAiTickTime) / 1000, 0.1);
+      lastAiTickTime = now2;
+
+      // Tick remote player interpolation
+      remotePlayers.update(game.playerDistance, mpDt);
+
+      // Broadcast our state at ~20Hz
+      if (now2 - lastNetSendTime > NET_SEND_INTERVAL) {
+        lastNetSendTime = now2;
+        activeNetwork.broadcast({
+          type: 'player_state',
+          payload: {
+            id: activeNetwork.getPeerId(),
+            distance: game.playerDistance,
+            speed: state.speed,
+            lap: state.lap,
+            x: game.cameraX,
+            timestamp: now2,
+          },
+        });
+      }
+
+      // Update RaceDirector with remote player standings
+      if (raceDirector) {
+        const remoteSnapshots = remotePlayers.getStates().map((s) => ({
+          id: s.id,
+          z: s.distance,
+          lap: s.lap,
+          isPlayer: false,
+        }));
+        const playerSnapshot = { id: 'player', z: game.playerDistance, lap: state.lap, isPlayer: true };
+        raceDirector.update(mpDt, [...remoteSnapshots, playerSnapshot]);
+        const raceState = raceDirector.getState();
+        game.setPosition(raceState.position, raceState.totalCars);
+      }
     }
   }
 
@@ -951,13 +1025,14 @@ async function init(): Promise<void> {
     },
   };
 
-  const startRace = (trackId: TrackId, modeId: ModeId): void => {
+  const startRace = (trackId: TrackId, modeId: ModeId, network?: NetworkManager): void => {
     uiRoot.hidden = true;
     inputManager.setAutoAccelerate(true);
     stateMachine.set('ready');
     cancelCountdown();
     replayRuntime.arm(trackId, modeId);
     currentModeId = modeId;
+    activeNetwork = network ?? null;
     startCountdown(startGame);
     notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
   };
@@ -969,7 +1044,7 @@ async function init(): Promise<void> {
   buildFlow(nav, {
     getBestScore: () => saveManager.bestScore,
     settings: settingsApi,
-    startRace,
+    startRace: (trackId, modeId, network) => startRace(trackId, modeId, network),
   });
   void nav.go('splash');
 
