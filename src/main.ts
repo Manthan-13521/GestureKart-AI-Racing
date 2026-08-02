@@ -704,6 +704,8 @@ function gameLoop(): void {
       drawSpeedLines(state.speed, game.steerCenterX);
       speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.3) / 2.5) * 0.8}`;
       audioManager.updateEngineSound(state.speed);
+      audioManager.updateGear(game.getGear());
+      audioManager.updateWeather(game.getWeather());
     } else {
       audioManager.stopEngine();
       const ctx = gameOverlayCanvas.getContext('2d');
