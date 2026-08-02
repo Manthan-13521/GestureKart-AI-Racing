@@ -1074,6 +1074,7 @@ async function init(): Promise<void> {
     howToPlay: new (await import('./screens/HowToPlayScreen')).HowToPlayScreen(),
     startRace: (trackId, modeId, network) => startRace(trackId, modeId, network),
   });
+  showMenu();
   void nav.go('splash');
 
   // Results buttons
