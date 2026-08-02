@@ -1,6 +1,22 @@
 import { HandTracker, HandData, getDirection, HAND_CONNECTIONS } from './input/HandTracker';
-import { KeyboardHandler, GameKeys } from './input/Keyboard';
+import type { GameKeys } from './input/Keyboard';
 import { Game, GameState } from './game/Game';
+import { EventBus } from './core/EventBus';
+import { StateMachine, type AppState } from './core/StateMachine';
+import { ResourceManager } from './managers/ResourceManager';
+import { AudioManager } from './managers/AudioManager';
+import { SaveManager } from './managers/SaveManager';
+import { InputManager } from './managers/InputManager';
+import { UIManager } from './managers/UIManager';
+
+// ─── Core systems ──────────────────────────────────────────────────
+const resources = new ResourceManager();
+const bus = new EventBus();
+const stateMachine = new StateMachine();
+const saveManager = new SaveManager();
+const audioManager = new AudioManager();
+const inputManager = new InputManager(bus);
+const ui = new UIManager();
 
 // ─── DOM refs ───────────────────────────────────────────────────────
 const landing = document.getElementById('landing')!;
@@ -49,9 +65,6 @@ const hudSpeed = document.getElementById('hud-speed')!;
 const hudGear = document.getElementById('hud-gear')!;
 const speedArc = document.getElementById('speed-arc')!;
 
-const countdownOverlay = document.getElementById('countdown-overlay')!;
-const countdownNum = document.getElementById('countdown-num')!;
-
 const statusAuto = document.getElementById('status-auto')!;
 const statusAutoDot = document.getElementById('status-auto-dot')!;
 const speedVignette = document.getElementById('speed-vignette')!;
@@ -60,9 +73,6 @@ const collisionFlash = document.getElementById('collision-flash')!;
 const resultsRetry = document.getElementById('results-retry')!;
 const resultsMenu = document.getElementById('results-menu')!;
 
-const menuOverlay = document.getElementById('menu-overlay')!;
-const howtoplayOverlay = document.getElementById('howtoplay-overlay')!;
-const settingsOverlay = document.getElementById('settings-overlay')!;
 const menuStart = document.getElementById('menu-start')!;
 const menuHowtoplay = document.getElementById('menu-howtoplay')!;
 const menuSettings = document.getElementById('menu-settings')!;
@@ -72,31 +82,21 @@ const menuSensitivitySlider = document.getElementById('menu-sensitivity-slider')
 const menuSensitivityValue = document.getElementById('menu-sensitivity-value')!;
 const menuAutoToggle = document.getElementById('menu-auto-toggle')!;
 
+const touchAuto = document.getElementById('touch-auto')!;
+const touchModeLabel = document.getElementById('touch-mode-label')!;
+const uBox = document.querySelector('.key-box[data-key="u"]')!;
+
 const panelLeft = document.getElementById('panel-left')!;
 const panelToggle = document.getElementById('panel-toggle')!;
 
 // ─── State ──────────────────────────────────────────────────────────
 let game: Game;
 let tracker: HandTracker;
-let keys: GameKeys = { up: false, down: false, left: false, right: false };
 let cameraActive = false;
 let handTrackingActive = false;
-let autoAccelerate = false;
-let gyroscopeMode = false;
-let gyroTilt = 0;
-
-// Audio
-let audioCtx: AudioContext | null = null;
-let engineOsc: OscillatorNode | null = null;
-let engineGain: GainNode | null = null;
-let subOsc: OscillatorNode | null = null;
-let subGain: GainNode | null = null;
-let engineRunning = false;
 
 // Countdown
 let countdownActive = false;
-let countdownTimer = 0;
-let countdownStep = 3;
 let countdownInterval: ReturnType<typeof setInterval> | null = null;
 
 let overlayFps = 0;
@@ -359,46 +359,75 @@ function updateStatus(): void {
   statusCameraDot.style.boxShadow = cameraActive ? '0 0 5px var(--green)' : '0 0 5px #f44';
   navCamDot.className = `cam-dot ${cameraActive ? 'on' : ''}`;
   navCamText.textContent = cameraActive ? 'Camera: ON' : 'Camera: OFF';
-  statusAuto.textContent = autoAccelerate ? 'ON' : 'OFF';
-  statusAuto.className = `status-val ${autoAccelerate ? '' : 'inactive'}`;
-  statusAutoDot.style.background = autoAccelerate ? 'var(--gold)' : 'var(--text3)';
-  statusAutoDot.style.boxShadow = autoAccelerate ? '0 0 5px var(--gold)' : 'none';
+  statusAuto.textContent = inputManager.autoAccelerate ? 'ON' : 'OFF';
+  statusAuto.className = `status-val ${inputManager.autoAccelerate ? '' : 'inactive'}`;
+  statusAutoDot.style.background = inputManager.autoAccelerate ? 'var(--gold)' : 'var(--text3)';
+  statusAutoDot.style.boxShadow = inputManager.autoAccelerate ? '0 0 5px var(--gold)' : 'none';
 }
+
+// ─── Auto-accelerate UI sync ───────────────────────────────────────
+function syncAutoUI(on: boolean): void {
+  touchAuto.classList.toggle('active', on);
+  uBox.classList.toggle('active', on);
+  menuAutoToggle.textContent = on ? 'ON' : 'OFF';
+  menuAutoToggle.classList.toggle('active', on);
+  updateStatus();
+}
+
+bus.on('auto', (on: boolean) => {
+  syncAutoUI(on);
+  saveManager.autoAccelerate = on;
+});
+
+bus.on('gyro', (on: boolean) => {
+  touchModeLabel.textContent = on ? 'GYRO' : 'TOUCH';
+  updateStatus();
+  saveManager.gyroscopeMode = on;
+});
+
+// ─── Screen state → overlays ───────────────────────────────────────
+stateMachine.onChange((_from, to) => {
+  ui.sync(to);
+  if (to === 'gameover') {
+    const score = Math.floor(game.getState().score);
+    ui.finalScore.textContent = `${score}`;
+    saveManager.setBestScore(score);
+  }
+});
 
 // ─── Countdown ─────────────────────────────────────────────────────
 function startCountdown(callback: () => void): void {
   if (countdownActive) return;
   countdownActive = true;
-  countdownStep = 3;
-  countdownOverlay.classList.remove('hidden');
-  countdownNum.textContent = '3';
-  countdownNum.className = 'countdown-num';
+  ui.countdown.classList.remove('hidden');
+  ui.countdownNum.textContent = '3';
+  ui.countdownNum.className = 'countdown-num';
 
   // Reset animation
-  countdownNum.style.animation = 'none';
-  void countdownNum.offsetHeight;
-  countdownNum.style.animation = '';
+  ui.countdownNum.style.animation = 'none';
+  void ui.countdownNum.offsetHeight;
+  ui.countdownNum.style.animation = '';
 
   let step = 3;
   countdownInterval = setInterval(() => {
     step--;
     if (step > 0) {
-      countdownNum.textContent = `${step}`;
-      countdownNum.className = 'countdown-num';
-      countdownNum.style.animation = 'none';
-      void countdownNum.offsetHeight;
-      countdownNum.style.animation = '';
+      ui.countdownNum.textContent = `${step}`;
+      ui.countdownNum.className = 'countdown-num';
+      ui.countdownNum.style.animation = 'none';
+      void ui.countdownNum.offsetHeight;
+      ui.countdownNum.style.animation = '';
     } else if (step === 0) {
-      countdownNum.textContent = 'GO';
-      countdownNum.className = 'countdown-num go';
-      countdownNum.style.animation = 'none';
-      void countdownNum.offsetHeight;
-      countdownNum.style.animation = '';
+      ui.countdownNum.textContent = 'GO';
+      ui.countdownNum.className = 'countdown-num go';
+      ui.countdownNum.style.animation = 'none';
+      void ui.countdownNum.offsetHeight;
+      ui.countdownNum.style.animation = '';
     } else {
       clearInterval(countdownInterval!);
       countdownInterval = null;
       countdownActive = false;
-      countdownOverlay.classList.add('hidden');
+      ui.countdown.classList.add('hidden');
       callback();
     }
   }, 250);
@@ -410,38 +439,35 @@ function cancelCountdown(): void {
     countdownInterval = null;
   }
   countdownActive = false;
-  countdownOverlay.classList.add('hidden');
+  ui.countdown.classList.add('hidden');
 }
 
 // ─── Keyboard callback ─────────────────────────────────────────────
-function onKeys(newKeys: GameKeys): void {
-  keys = newKeys;
+function onKeysChanged(newKeys: GameKeys): void {
   const keyBoxes = document.querySelectorAll('.key-box');
   for (const box of keyBoxes) {
     const k = box.getAttribute('data-key');
-    if (k === 'w') box.classList.toggle('active', keys.up);
-    if (k === 'a') box.classList.toggle('active', keys.left);
-    if (k === 'd') box.classList.toggle('active', keys.right);
+    if (k === 'w') box.classList.toggle('active', newKeys.up);
+    if (k === 'a') box.classList.toggle('active', newKeys.left);
+    if (k === 'd') box.classList.toggle('active', newKeys.right);
   }
-  const uBox = document.querySelector('.key-box[data-key="u"]')!;
-  uBox.classList.toggle('active', autoAccelerate);
 
   if (game) {
-    if (keys.up) {
+    if (newKeys.up) {
       game.setHandData(game.steerCenterX, 2);
       if (!game.started || game.gameOver) {
-        if (landing.classList.contains('visible')) return;
-        if (menuOverlay.classList.contains('visible')) return;
+        const s = stateMachine.get();
+        if (s === 'landing') return;
+        if (s === 'menu') return;
         cancelCountdown();
         startCountdown(() => {
           game.start();
-          document.getElementById('game-overlay')!.classList.remove('visible');
-          document.getElementById('game-over-overlay')!.classList.remove('visible');
+          stateMachine.set('racing');
         });
       }
-    } else if (keys.left || keys.right) {
-      const steerX = keys.left ? 0 : 1;
-      game.setHandData(steerX, autoAccelerate ? 2 : 1);
+    } else if (newKeys.left || newKeys.right) {
+      const steerX = newKeys.left ? 0 : 1;
+      game.setHandData(steerX, inputManager.autoAccelerate ? 2 : 1);
     }
   }
 }
@@ -455,21 +481,21 @@ function onHandData(data: HandData): void {
 
   // Hand tracking always provides steering (centerX) for the game.
   // The game loop applies keyboard/touch overrides on top when active.
-  game.setHandData(data.centerX, autoAccelerate ? 2 : data.handsDetected);
+  game.setHandData(data.centerX, inputManager.autoAccelerate ? 2 : data.handsDetected);
 
   if (data.landmarks.length > 0) {
     game.setHandSkeleton(data.landmarks[0]);
   }
 
   if (!game.started && data.handsDetected >= 2 && !countdownActive) {
-    if (landing.classList.contains('visible')) return;
-    if (menuOverlay.classList.contains('visible')) return;
-    if (howtoplayOverlay.classList.contains('visible')) return;
-    if (settingsOverlay.classList.contains('visible')) return;
+    const s = stateMachine.get();
+    if (s === 'landing') return;
+    if (s === 'menu') return;
+    if (s === 'howtoplay') return;
+    if (s === 'settings') return;
     startCountdown(() => {
       game.start();
-      document.getElementById('game-overlay')!.classList.remove('visible');
-      document.getElementById('game-over-overlay')!.classList.remove('visible');
+      stateMachine.set('racing');
     });
   }
 
@@ -490,33 +516,30 @@ function gameLoop(): void {
 
   if (game) {
     // Auto-accelerate layer
-    if (autoAccelerate && !keys.up) {
+    if (inputManager.autoAccelerate && !inputManager.keys.up) {
       let steerX = game.steerCenterX;
-      if (touchActive) {
+      if (inputManager.touch.active) {
         // touch steering already set by applyTouchState
-      } else if (gyroscopeMode) {
-        steerX = 0.5 + gyroTilt * 0.4;
-      } else if (keys.left || keys.right) {
-        steerX = keys.left ? 0 : 1;
+      } else if (inputManager.gyroscopeMode) {
+        steerX = 0.5 + inputManager.gyroTilt * 0.4;
+      } else if (inputManager.keys.left || inputManager.keys.right) {
+        steerX = inputManager.keys.left ? 0 : 1;
       }
       game.setHandData(steerX, 2);
       if (!game.started) {
-        if (landing.classList.contains('visible')) return;
-        if (menuOverlay.classList.contains('visible')) return;
+        const s = stateMachine.get();
+        if (s === 'landing') return;
+        if (s === 'menu') return;
         startCountdown(() => {
           game.start();
-          menuOverlay.classList.remove('visible');
-          howtoplayOverlay.classList.remove('visible');
-          settingsOverlay.classList.remove('visible');
-          document.getElementById('game-overlay')!.classList.remove('visible');
-          document.getElementById('game-over-overlay')!.classList.remove('visible');
+          stateMachine.set('racing');
         });
       }
     }
     // Gyroscope layer
-    else if (gyroscopeMode && !touchActive && !keys.left && !keys.right) {
-      const gyroCenterX = 0.5 + gyroTilt * 0.4;
-      const gyroHands = keys.up ? 2 : 0;
+    else if (inputManager.gyroscopeMode && !inputManager.touch.active && !inputManager.keys.left && !inputManager.keys.right) {
+      const gyroCenterX = 0.5 + inputManager.gyroTilt * 0.4;
+      const gyroHands = inputManager.keys.up ? 2 : 0;
       game.setHandData(gyroCenterX, gyroHands);
     }
 
@@ -531,9 +554,9 @@ function gameLoop(): void {
     if (state.started && !state.gameOver) {
       drawSpeedLines(state.speed, game.steerCenterX);
       speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.3) / 2.5) * 0.8}`;
-      updateEngineSound(state.speed);
+      audioManager.updateEngineSound(state.speed);
     } else {
-      stopEngineSound();
+      audioManager.stopEngine();
       const ctx = gameOverlayCanvas.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, gameOverlayCanvas.width, gameOverlayCanvas.height);
       speedVignette.style.opacity = '0';
@@ -542,34 +565,26 @@ function gameLoop(): void {
     // Juice: collision flash
     if (state.justCollided) {
       collisionFlash.classList.add('active');
-      playCollisionSound();
+      audioManager.playCollision();
       setTimeout(() => collisionFlash.classList.remove('active'), 450);
     }
 
-    const startOvr = document.getElementById('game-overlay')!;
-    const gameOverOvr = document.getElementById('game-over-overlay')!;
-    const finalScoreEl = document.getElementById('final-score')!;
-    if (landing.classList.contains('visible')) {
-      startOvr.classList.remove('visible');
-      gameOverOvr.classList.remove('visible');
-      menuOverlay.classList.remove('visible');
-      howtoplayOverlay.classList.remove('visible');
-      settingsOverlay.classList.remove('visible');
+    // Screen state derived from game phase
+    const s = stateMachine.get();
+    let desired: AppState;
+    if (s === 'landing') {
+      desired = 'landing';
     } else if (state.started && !state.gameOver) {
-      startOvr.classList.remove('visible');
-      gameOverOvr.classList.remove('visible');
-      menuOverlay.classList.remove('visible');
-      howtoplayOverlay.classList.remove('visible');
-      settingsOverlay.classList.remove('visible');
+      desired = 'racing';
     } else if (state.gameOver) {
-      startOvr.classList.remove('visible');
-      gameOverOvr.classList.add('visible');
-      finalScoreEl.textContent = `${Math.floor(state.score)}`;
-    } else if (!menuOverlay.classList.contains('visible') &&
-               !howtoplayOverlay.classList.contains('visible') &&
-               !settingsOverlay.classList.contains('visible')) {
-      startOvr.classList.add('visible');
-      gameOverOvr.classList.remove('visible');
+      desired = 'gameover';
+    } else if (s === 'menu' || s === 'howtoplay' || s === 'settings') {
+      desired = s;
+    } else {
+      desired = 'ready';
+    }
+    if (desired !== s) {
+      stateMachine.set(desired);
     }
   }
 
@@ -581,6 +596,7 @@ function setupSensitivity(): void {
   sensitivitySlider.addEventListener('input', () => {
     const val = parseInt(sensitivitySlider.value, 10);
     sensitivityValue.textContent = `${val}%`;
+    saveManager.sensitivity = val;
     const alpha = val / 100;
     if (tracker) tracker.setSmoothing(1 - alpha * 0.6);
     if (game) game.setSensitivity(alpha);
@@ -595,174 +611,28 @@ function handleResize(): void {
 }
 
 // ─── Touch Controls ────────────────────────────────────────────────
-let touchActive = false;
-let touchLeftHeld = false;
-let touchRightHeld = false;
-let touchUpHeld = false;
-
-function setupTouchControls(): void {
-  const touchLeft = document.getElementById('touch-left')!;
-  const touchRight = document.getElementById('touch-right')!;
-  const touchAccel = document.getElementById('touch-accel')!;
-  const touchAuto = document.getElementById('touch-auto')!;
-  const modeLabel = document.getElementById('touch-mode-label')!;
-
-  function applyTouchState(): void {
-    if (!game) return;
-    touchActive = touchLeftHeld || touchRightHeld || touchUpHeld;
-    if (touchUpHeld) {
-      let steerX = 0.5;
-      if (touchLeftHeld) steerX = 0;
-      else if (touchRightHeld) steerX = 1;
-      game.setHandData(steerX, 2);
-      if (!game.started || game.gameOver) {
-        if (landing.classList.contains('visible')) return;
-        if (menuOverlay.classList.contains('visible')) return;
-        cancelCountdown();
-        startCountdown(() => {
-          game.start();
-          menuOverlay.classList.remove('visible');
-          howtoplayOverlay.classList.remove('visible');
-          settingsOverlay.classList.remove('visible');
-          document.getElementById('game-overlay')!.classList.remove('visible');
-          document.getElementById('game-over-overlay')!.classList.remove('visible');
-        });
-      }
-    } else if (touchLeftHeld) {
-      game.setHandData(0, autoAccelerate ? 2 : 1);
-    } else if (touchRightHeld) {
-      game.setHandData(1, autoAccelerate ? 2 : 1);
+function applyTouchState(): void {
+  if (!game) return;
+  const touch = inputManager.touch;
+  if (touch.up) {
+    let steerX = 0.5;
+    if (touch.left) steerX = 0;
+    else if (touch.right) steerX = 1;
+    game.setHandData(steerX, 2);
+    if (!game.started || game.gameOver) {
+      const s = stateMachine.get();
+      if (s === 'landing') return;
+      if (s === 'menu') return;
+      cancelCountdown();
+      startCountdown(() => {
+        game.start();
+        stateMachine.set('racing');
+      });
     }
-  }
-
-  function bindTouch(el: HTMLElement, key: 'left' | 'right' | 'up'): void {
-    const setHeld = (held: boolean) => {
-      if (key === 'left') touchLeftHeld = held;
-      else if (key === 'right') touchRightHeld = held;
-      else touchUpHeld = held;
-      el.classList.toggle('pressed', held);
-      applyTouchState();
-    };
-    el.addEventListener('touchstart', (e) => { e.preventDefault(); setHeld(true); }, { passive: false });
-    el.addEventListener('touchend', (e) => { e.preventDefault(); setHeld(false); }, { passive: false });
-    el.addEventListener('touchcancel', () => setHeld(false));
-    el.addEventListener('mousedown', () => setHeld(true));
-    el.addEventListener('mouseup', () => setHeld(false));
-    el.addEventListener('mouseleave', () => setHeld(false));
-  }
-
-  bindTouch(touchLeft, 'left');
-  bindTouch(touchRight, 'right');
-  bindTouch(touchAccel, 'up');
-
-  touchAuto.addEventListener('click', () => {
-    autoAccelerate = !autoAccelerate;
-    touchAuto.classList.toggle('active', autoAccelerate);
-    const uBox = document.querySelector('.key-box[data-key="u"]');
-    if (uBox) uBox.classList.toggle('active', autoAccelerate);
-    updateStatus();
-    if (touchActive) applyTouchState();
-  });
-
-  let lastTap = 0;
-  modeLabel.addEventListener('click', () => {
-    const now = Date.now();
-    if (now - lastTap < 400) {
-      gyroscopeMode = !gyroscopeMode;
-      modeLabel.textContent = gyroscopeMode ? 'GYRO' : 'TOUCH';
-      deviceOrientationInit();
-      updateStatus();
-    }
-    lastTap = now;
-  });
-}
-
-// ─── Gyroscope ─────────────────────────────────────────────────────
-let orientationListener: ((e: DeviceOrientationEvent) => void) | null = null;
-
-function deviceOrientationInit(): void {
-  if (orientationListener) {
-    window.removeEventListener('deviceorientation', orientationListener);
-    orientationListener = null;
-  }
-  if (!gyroscopeMode) return;
-
-  orientationListener = (e: DeviceOrientationEvent) => {
-    if (e.gamma == null) return;
-    gyroTilt = Math.max(-1, Math.min(1, e.gamma / 45));
-  };
-
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-    (DeviceOrientationEvent as any).requestPermission().then((state: string) => {
-      if (state === 'granted') window.addEventListener('deviceorientation', orientationListener!);
-    });
-  } else {
-    window.addEventListener('deviceorientation', orientationListener);
-  }
-}
-
-// ─── Audio Engine ──────────────────────────────────────────────────
-function initAudio(): void {
-  if (audioCtx) return;
-  try {
-    audioCtx = new AudioContext();
-    engineGain = audioCtx.createGain();
-    engineGain.gain.value = 0;
-    engineGain.connect(audioCtx.destination);
-
-    engineOsc = audioCtx.createOscillator();
-    engineOsc.type = 'sawtooth';
-    engineOsc.frequency.value = 60;
-    engineOsc.connect(engineGain);
-    engineOsc.start();
-
-    subGain = audioCtx.createGain();
-    subGain.gain.value = 0;
-    subGain.connect(audioCtx.destination);
-
-    subOsc = audioCtx.createOscillator();
-    subOsc.type = 'sine';
-    subOsc.frequency.value = 30;
-    subOsc.connect(subGain);
-    subOsc.start();
-
-    engineRunning = true;
-  } catch { /* audio not available */ }
-}
-
-function updateEngineSound(speed: number): void {
-  if (!engineOsc || !engineGain || !subOsc || !subGain || !audioCtx) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const freq = 60 + speed * 80;
-  const vol = speed > 0.1 ? 0.04 + speed * 0.02 : 0;
-  const subVol = speed > 0.1 ? 0.06 + speed * 0.015 : 0;
-  engineOsc.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.1);
-  engineGain.gain.setTargetAtTime(vol, audioCtx.currentTime, 0.1);
-  subOsc.frequency.setTargetAtTime(freq * 0.5, audioCtx.currentTime, 0.15);
-  subGain.gain.setTargetAtTime(subVol, audioCtx.currentTime, 0.15);
-}
-
-function playCollisionSound(): void {
-  if (!audioCtx) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = 'square';
-  osc.frequency.value = 120;
-  gain.gain.value = 0.15;
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
-  osc.stop(audioCtx.currentTime + 0.3);
-}
-
-function stopEngineSound(): void {
-  if (engineGain && audioCtx) {
-    engineGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
-  }
-  if (subGain && audioCtx) {
-    subGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.2);
+  } else if (touch.left) {
+    game.setHandData(0, inputManager.autoAccelerate ? 2 : 1);
+  } else if (touch.right) {
+    game.setHandData(1, inputManager.autoAccelerate ? 2 : 1);
   }
 }
 
@@ -807,81 +677,79 @@ function drawSpeedLines(speed: number, steerX: number): void {
 }
 
 // ─── Init ──────────────────────────────────────────────────────────
+function applySavedSensitivity(): void {
+  const val = saveManager.sensitivity;
+  sensitivitySlider.value = `${val}`;
+  sensitivityValue.textContent = `${val}%`;
+  const alpha = val / 100;
+  if (tracker) tracker.setSmoothing(1 - alpha * 0.6);
+  if (game) game.setSensitivity(alpha);
+}
+
 async function init(): Promise<void> {
   const gc = document.getElementById('game') as HTMLCanvasElement;
   if (!gc) throw new Error('Canvas #game not found');
 
-  game = new Game(gc);
+  game = new Game(gc, resources);
   handleResize();
   window.addEventListener('resize', handleResize);
 
-  new KeyboardHandler(onKeys);
+  // Restore persisted settings
+  inputManager.autoAccelerate = saveManager.autoAccelerate;
+  inputManager.gyroscopeMode = saveManager.gyroscopeMode;
+
+  inputManager.onKeysChanged(onKeysChanged);
+  inputManager.onTouchChanged(applyTouchState);
+  inputManager.bindTouchControls({
+    left: document.getElementById('touch-left')!,
+    right: document.getElementById('touch-right')!,
+    accel: document.getElementById('touch-accel')!,
+    auto: touchAuto,
+    modeLabel: touchModeLabel,
+  });
+  inputManager.initGyro();
+
   setupSensitivity();
-  setupTouchControls();
-  deviceOrientationInit();
+  applySavedSensitivity();
+  syncAutoUI(inputManager.autoAccelerate);
+  touchModeLabel.textContent = inputManager.gyroscopeMode ? 'GYRO' : 'TOUCH';
 
   // Init audio on first interaction
-  const initAudioOnce = () => { initAudio(); window.removeEventListener('click', initAudioOnce); window.removeEventListener('keydown', initAudioOnce); window.removeEventListener('touchstart', initAudioOnce); };
+  const initAudioOnce = () => { audioManager.init(); window.removeEventListener('click', initAudioOnce); window.removeEventListener('keydown', initAudioOnce); window.removeEventListener('touchstart', initAudioOnce); };
   window.addEventListener('click', initAudioOnce, { once: true });
   window.addEventListener('keydown', initAudioOnce, { once: true });
   window.addEventListener('touchstart', initAudioOnce, { once: true });
 
-  // U key toggle
-  window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'u') {
-      e.preventDefault();
-      autoAccelerate = !autoAccelerate;
-      const touchAuto = document.getElementById('touch-auto');
-      if (touchAuto) touchAuto.classList.toggle('active', autoAccelerate);
-      const uBox = document.querySelector('.key-box[data-key="u"]');
-      if (uBox) uBox.classList.toggle('active', autoAccelerate);
-      updateStatus();
-    }
-  });
-
   // ─── Menu flow ──────────────────────────────────────────────
-  function showMenu(screen: 'menu' | 'howtoplay' | 'settings' | 'game'): void {
-    menuOverlay.classList.toggle('visible', screen === 'menu');
-    howtoplayOverlay.classList.toggle('visible', screen === 'howtoplay');
-    settingsOverlay.classList.toggle('visible', screen === 'settings');
-    document.getElementById('game-overlay')!.classList.toggle('visible', screen === 'game');
-  }
-
   menuStart.addEventListener('click', () => {
-    showMenu('game');
-    const startOvr = document.getElementById('game-overlay')!;
-    startOvr.classList.add('visible');
-    document.getElementById('game-over-overlay')!.classList.remove('visible');
+    stateMachine.set('ready');
     cancelCountdown();
     startCountdown(() => {
       game.start();
-      menuOverlay.classList.remove('visible');
-      howtoplayOverlay.classList.remove('visible');
-      settingsOverlay.classList.remove('visible');
-      document.getElementById('game-overlay')!.classList.remove('visible');
-      document.getElementById('game-over-overlay')!.classList.remove('visible');
+      stateMachine.set('racing');
     });
   });
 
-  menuHowtoplay.addEventListener('click', () => showMenu('howtoplay'));
-  htpBack.addEventListener('click', () => showMenu('menu'));
+  menuHowtoplay.addEventListener('click', () => stateMachine.set('howtoplay'));
+  htpBack.addEventListener('click', () => stateMachine.set('menu'));
 
   menuSettings.addEventListener('click', () => {
     menuSensitivitySlider.value = sensitivitySlider.value;
     menuSensitivityValue.textContent = `${sensitivitySlider.value}%`;
-    menuAutoToggle.textContent = autoAccelerate ? 'ON' : 'OFF';
-    menuAutoToggle.classList.toggle('active', autoAccelerate);
-    showMenu('settings');
+    menuAutoToggle.textContent = inputManager.autoAccelerate ? 'ON' : 'OFF';
+    menuAutoToggle.classList.toggle('active', inputManager.autoAccelerate);
+    stateMachine.set('settings');
   });
 
   settingsBack.addEventListener('click', () => {
     const val = parseInt(menuSensitivitySlider.value, 10);
     sensitivitySlider.value = `${val}`;
     sensitivityValue.textContent = `${val}%`;
+    saveManager.sensitivity = val;
     const alpha = val / 100;
     if (tracker) tracker.setSmoothing(1 - alpha * 0.85);
     if (game) game.setSensitivity(alpha);
-    showMenu('menu');
+    stateMachine.set('menu');
   });
 
   menuSensitivitySlider.addEventListener('input', () => {
@@ -890,14 +758,7 @@ async function init(): Promise<void> {
   });
 
   menuAutoToggle.addEventListener('click', () => {
-    autoAccelerate = !autoAccelerate;
-    menuAutoToggle.textContent = autoAccelerate ? 'ON' : 'OFF';
-    menuAutoToggle.classList.toggle('active', autoAccelerate);
-    const touchAuto = document.getElementById('touch-auto');
-    if (touchAuto) touchAuto.classList.toggle('active', autoAccelerate);
-    const uBox = document.querySelector('.key-box[data-key="u"]');
-    if (uBox) uBox.classList.toggle('active', autoAccelerate);
-    updateStatus();
+    inputManager.setAutoAccelerate(!inputManager.autoAccelerate);
   });
 
   // Results buttons
@@ -905,14 +766,13 @@ async function init(): Promise<void> {
     cancelCountdown();
     startCountdown(() => {
       game.start();
-      document.getElementById('game-over-overlay')!.classList.remove('visible');
+      stateMachine.set('racing');
     });
   });
 
   resultsMenu.addEventListener('click', () => {
     cancelCountdown();
-    document.getElementById('game-over-overlay')!.classList.remove('visible');
-    landing.classList.add('visible');
+    stateMachine.set('landing');
   });
 
   faceLabel.style.display = 'none';
@@ -921,43 +781,30 @@ async function init(): Promise<void> {
 
   // ─── Landing page controls ────────────────────────────────────
   landingPlay.addEventListener('click', () => {
-    landing.classList.remove('visible');
-    document.getElementById('game-overlay')!.classList.remove('visible');
-    document.getElementById('game-over-overlay')!.classList.remove('visible');
-    autoAccelerate = true;
+    inputManager.setAutoAccelerate(true);
+    stateMachine.set('ready');
     if (game) game.setHandData(0.5, 2);
     startCountdown(() => {
       game.start();
-      document.getElementById('menu-overlay')!.classList.remove('visible');
-      document.getElementById('howtoplay-overlay')!.classList.remove('visible');
-      document.getElementById('settings-overlay')!.classList.remove('visible');
+      stateMachine.set('racing');
     });
   });
 
-  landingSettings.addEventListener('click', () => {
-    landing.classList.remove('visible');
-    document.getElementById('menu-overlay')!.classList.remove('visible');
-    document.getElementById('settings-overlay')!.classList.add('visible');
-  });
-
-  landingLearn.addEventListener('click', () => {
-    landing.classList.remove('visible');
-    document.getElementById('menu-overlay')!.classList.remove('visible');
-    document.getElementById('howtoplay-overlay')!.classList.add('visible');
-  });
+  landingSettings.addEventListener('click', () => stateMachine.set('settings'));
+  landingLearn.addEventListener('click', () => stateMachine.set('howtoplay'));
 
   navTitle.addEventListener('click', () => {
-    landing.classList.add('visible');
+    stateMachine.set('landing');
     if (game) game.setGameOver();
-    document.getElementById('game-over-overlay')!.classList.remove('visible');
-    document.getElementById('game-overlay')!.classList.add('visible');
-    document.getElementById('menu-overlay')!.classList.remove('visible');
-    document.getElementById('howtoplay-overlay')!.classList.remove('visible');
-    document.getElementById('settings-overlay')!.classList.remove('visible');
   });
   navTitle.style.cursor = 'pointer';
 
+  if (!resources.externalHandsReady() || !resources.externalCameraUtilsReady()) {
+    throw new Error('MediaPipe scripts failed to load — camera hand tracking unavailable. Keyboard and touch still work.');
+  }
+
   tracker = new HandTracker(video, onHandData);
+  tracker.setSmoothing(1 - (saveManager.sensitivity / 100) * 0.6);
   try {
     await tracker.start();
     cameraActive = true;
@@ -970,6 +817,10 @@ async function init(): Promise<void> {
     handLeftLabel.style.display = 'none';
     handRightLabel.style.display = 'none';
   }
+
+  window.addEventListener('beforeunload', () => {
+    game?.dispose();
+  });
 
   updateStatus();
   gameLoop();
