@@ -11,7 +11,11 @@ import { SettingsScreen, type SettingsApi } from './SettingsScreen';
 export interface FlowApi {
   getBestScore: () => number;
   settings: SettingsApi;
-  startRace: (trackId: TrackId, modeId: ModeId) => void;
+  startRace: (
+    trackId: TrackId,
+    modeId: ModeId,
+    network?: import('../network/NetworkManager').NetworkManager
+  ) => void;
 }
 
 let lastTrack: TrackId = 'cyber-city';
@@ -105,10 +109,10 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
   nav.register('gameplay', {
     create: () => {
       const screen = new GameplayScreen();
-      screen.startRace = (track, mode) => {
+      screen.startRace = (track, mode, network) => {
         lastTrack = track;
         lastMode = mode;
-        api.startRace(track, mode);
+        api.startRace(track, mode, network);
       };
       return screen;
     },
