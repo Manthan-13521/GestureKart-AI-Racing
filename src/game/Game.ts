@@ -5,6 +5,7 @@ import { SceneManager, type SceneOptions } from '../managers/SceneManager';
 import type { ResourceManager } from '../managers/ResourceManager';
 import { ParticlePool } from '../graphics/ParticlePool';
 import { WeatherSystem } from '../graphics/WeatherSystem';
+import { PostProcessor } from '../graphics/PostProcessor';
 
 const SEG_LEN = 24;
 const NUM_SEG = 18;
@@ -86,6 +87,7 @@ export class Game {
   private particlePool!: ParticlePool;
   private weatherSystem!: WeatherSystem;
   private ambientLight!: THREE.AmbientLight;
+  private postProcessor!: PostProcessor;
 
   private baseFov = FOV;
 
@@ -109,6 +111,11 @@ export class Game {
     this.particlePool = new ParticlePool(this.scene);
     // WeatherSystem needs the ambient light created in setupLights()
     this.weatherSystem = new WeatherSystem(this.scene, this.ambientLight);
+    // Bloom post-processor (disabled on mobile to save GPU)
+    const vpW = canvas.clientWidth || 800;
+    const vpH = canvas.clientHeight || 600;
+    this.postProcessor = new PostProcessor(this.renderer, vpW, vpH);
+    this.postProcessor.enabled = !this.mobile;
 
     this.lastFrameTime = performance.now();
   }
@@ -203,6 +210,10 @@ export class Game {
     if (kmh < 110) return 3;
     if (kmh < 160) return 4;
     return 5;
+  }
+
+  getWeather(): import('../graphics/WeatherSystem').WeatherKind {
+    return this.weatherSystem.getCurrentKind();
   }
 
   setHandData(centerX: number, handsDetected: number): void {
@@ -763,16 +774,18 @@ export class Game {
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    this.postProcessor.render(this.scene, this.camera);
   }
 
   resize(w: number, h: number): void {
     this.scenes.resize(w, h);
+    this.postProcessor.resize(w, h);
   }
 
   dispose(): void {
     this.particlePool.dispose();
     this.weatherSystem.dispose();
+    this.postProcessor.dispose();
     this.scenes.dispose();
   }
 }
