@@ -9,22 +9,22 @@ export class NetworkManager {
   private hostId: string | null = null;
   public isHost = false;
 
-  private onMessageCallback: ((senderId: string, msg: NetMessage) => void) | null = null;
-  private onPeerConnectedCallback: ((peerId: string) => void) | null = null;
-  private onPeerDisconnectedCallback: ((peerId: string) => void) | null = null;
+  private messageHandlers: ((senderId: string, msg: NetMessage) => void)[] = [];
+  private connectedHandlers: ((peerId: string) => void)[] = [];
+  private disconnectedHandlers: ((peerId: string) => void)[] = [];
 
   constructor() {}
 
   public onMessage(cb: (senderId: string, msg: NetMessage) => void): void {
-    this.onMessageCallback = cb;
+    this.messageHandlers.push(cb);
   }
 
   public onPeerConnected(cb: (peerId: string) => void): void {
-    this.onPeerConnectedCallback = cb;
+    this.connectedHandlers.push(cb);
   }
 
   public onPeerDisconnected(cb: (peerId: string) => void): void {
-    this.onPeerDisconnectedCallback = cb;
+    this.disconnectedHandlers.push(cb);
   }
 
   public async createLobby(): Promise<string> {
@@ -72,21 +72,15 @@ export class NetworkManager {
     this.connections.set(conn.peer, conn);
 
     conn.on('data', (data: unknown) => {
-      if (this.onMessageCallback) {
-        this.onMessageCallback(conn.peer, data as NetMessage);
-      }
+      for (const h of this.messageHandlers) h(conn.peer, data as NetMessage);
     });
 
     conn.on('close', () => {
       this.connections.delete(conn.peer);
-      if (this.onPeerDisconnectedCallback) {
-        this.onPeerDisconnectedCallback(conn.peer);
-      }
+      for (const h of this.disconnectedHandlers) h(conn.peer);
     });
 
-    if (this.onPeerConnectedCallback) {
-      this.onPeerConnectedCallback(conn.peer);
-    }
+    for (const h of this.connectedHandlers) h(conn.peer);
   }
 
   public broadcast(msg: NetMessage): void {
@@ -116,5 +110,8 @@ export class NetworkManager {
       this.peer = null;
     }
     this.connections.clear();
+    this.messageHandlers = [];
+    this.connectedHandlers = [];
+    this.disconnectedHandlers = [];
   }
 }

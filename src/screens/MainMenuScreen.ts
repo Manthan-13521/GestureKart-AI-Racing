@@ -13,6 +13,7 @@ export class MainMenuScreen extends Screen {
   onPlay: (() => void) | null = null;
   onSettings: (() => void) | null = null;
   onHowToPlay: (() => void) | null = null;
+  onGarage: (() => void) | null = null;
 
   constructor() {
     super('menu');
@@ -48,12 +49,16 @@ export class MainMenuScreen extends Screen {
     const actions = document.createElement('div');
     actions.className = 'menu-actions';
     const playBtn = new Button('Race', { size: 'lg' });
+    const garageBtn = new Button('Garage', { variant: 'ghost', size: 'md' });
     const settingsBtn = new Button('Settings', { variant: 'ghost', size: 'md' });
     const howBtn = new Button('How to Play', { variant: 'ghost', size: 'md' });
+
     playBtn.el.addEventListener('click', () => this.onPlay?.());
+    garageBtn.el.addEventListener('click', () => this.onGarage?.());
     settingsBtn.el.addEventListener('click', () => this.onSettings?.());
     howBtn.el.addEventListener('click', () => this.onHowToPlay?.());
-    actions.append(playBtn.el, settingsBtn.el, howBtn.el);
+
+    actions.append(playBtn.el, garageBtn.el, settingsBtn.el, howBtn.el);
     wrap.appendChild(actions);
 
     const note = document.createElement('div');
@@ -66,7 +71,7 @@ export class MainMenuScreen extends Screen {
     void AnimationSystem.play(title, 'blur-in', { duration: 700 });
     void AnimationSystem.play(subtitle, 'fade-in', { delay: 200 });
     void AnimationSystem.stagger(
-      [playBtn.el, settingsBtn.el, howBtn.el],
+      [playBtn.el, garageBtn.el, settingsBtn.el, howBtn.el],
       'slide-in-up',
       { duration: 460 },
       90

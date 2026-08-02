@@ -6,6 +6,7 @@ import type { ResourceManager } from '../managers/ResourceManager';
 import { ParticlePool } from '../graphics/ParticlePool';
 import { WeatherSystem } from '../graphics/WeatherSystem';
 import { PostProcessor } from '../graphics/PostProcessor';
+import { profileManager } from '../managers/ProfileManager';
 
 const SEG_LEN = 24;
 const NUM_SEG = 18;
@@ -38,6 +39,7 @@ export class Game {
   private mobile: boolean;
 
   private segments: THREE.Group[] = [];
+
   private obstacles: THREE.Group[] = [];
   private maxObstacles = 10;
 
@@ -68,6 +70,11 @@ export class Game {
   private lastFrameTime = 0;
 
   private shakeIntensity = 0;
+  public cameraMode: 'chase' | 'orbit' | 'cinematic' | 'free' = 'chase';
+  public orbitAngle = 0;
+  public freeCameraPos = new THREE.Vector3();
+  public freeCameraRot = new THREE.Euler();
+
   private _justCollided = false;
 
   private headlight1!: THREE.SpotLight;
@@ -87,7 +94,7 @@ export class Game {
   private particlePool!: ParticlePool;
   private weatherSystem!: WeatherSystem;
   private ambientLight!: THREE.AmbientLight;
-  private postProcessor!: PostProcessor;
+  public postProcessor!: PostProcessor;
 
   private baseFov = FOV;
 
@@ -120,15 +127,15 @@ export class Game {
     this.lastFrameTime = performance.now();
   }
 
-  private get scene(): THREE.Scene {
+  public get scene(): THREE.Scene {
     return this.scenes.scene;
   }
 
-  private get camera(): THREE.PerspectiveCamera {
+  public get camera(): THREE.PerspectiveCamera {
     return this.scenes.camera;
   }
 
-  private get renderer(): THREE.WebGLRenderer {
+  public get renderer(): THREE.WebGLRenderer {
     return this.scenes.renderer;
   }
 
@@ -402,9 +409,19 @@ export class Game {
 
     const bodyMat = new THREE.MeshBasicMaterial({ color: 0x0c0e12 });
 
+    const state = profileManager.currentState;
+    const skinMap: Record<string, number> = {
+      default: 0xcc2222,
+      blue: 0x1188cc,
+      green: 0x00aa88,
+      purple: 0x8833cc,
+      gold: 0xccaa33,
+    };
+    const skinColor = skinMap[state.selectedSkin] || 0x0e1015;
+
     const hood = new THREE.Mesh(
       new THREE.BoxGeometry(2.4, 0.1, 2.2),
-      new THREE.MeshStandardMaterial({ color: 0x0e1015, roughness: 0.3, metalness: 0.6 })
+      new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.3, metalness: 0.6 })
     );
     hood.position.set(0, 0.05, -1.6);
     hood.receiveShadow = true;
@@ -705,26 +722,7 @@ export class Game {
       this.shakeIntensity = 0;
     }
 
-    const shakeX = (Math.random() - 0.5) * this.shakeIntensity * 0.8;
-    const shakeY = (Math.random() - 0.5) * this.shakeIntensity * 0.5;
-    const rollExtra = (Math.random() - 0.5) * this.shakeIntensity * 0.04;
-
-    this.camera.position.x = this._cameraX + shakeX;
-    this.camera.position.y = CAM_Y + shakeY;
-    this.camera.rotation.z = this._cameraX * -0.025 + rollExtra;
-
-    const fovBoost = this._speed * 2.5;
-    this.camera.fov = this.baseFov + fovBoost;
-    this.camera.updateProjectionMatrix();
-
-    const wheelTargetRot = -this._cameraX * 0.18;
-    this.wheelAngle += (wheelTargetRot - this.wheelAngle) * 0.12;
-    this.wheelGroup.rotation.z = this.wheelAngle;
-
-    this.cockpitGroup.position.x = this._cameraX;
-
-    this.headlight1.target.position.set(this._cameraX - 1.5, 0, -20);
-    this.headlight2.target.position.set(this._cameraX + 1.5, 0, -20);
+    this.updateCamera(dt);
 
     const moveAmount = this._speed * dt;
     for (const seg of this.segments) {
@@ -773,7 +771,52 @@ export class Game {
     this.weatherSystem.update(dt / 60, this._speed, moveAmount);
   }
 
-  render(): void {
+  public updateCamera(dt: number = 1 / 60): void {
+    const shakeX = (Math.random() - 0.5) * this.shakeIntensity * 0.8;
+    const shakeY = (Math.random() - 0.5) * this.shakeIntensity * 0.5;
+    const rollExtra = (Math.random() - 0.5) * this.shakeIntensity * 0.04;
+
+    if (this.cameraMode === 'chase') {
+      this.camera.position.x = this._cameraX + shakeX;
+      this.camera.position.y = CAM_Y + shakeY;
+      this.camera.position.z = 0;
+      this.camera.rotation.set(0, 0, this._cameraX * -0.025 + rollExtra);
+
+      const fovBoost = this._speed * 2.5;
+      this.camera.fov = this.baseFov + fovBoost;
+    } else if (this.cameraMode === 'orbit') {
+      this.orbitAngle += dt * 0.5;
+      const radius = 6;
+      this.camera.position.x = this._cameraX + Math.sin(this.orbitAngle) * radius;
+      this.camera.position.y = 2 + Math.abs(Math.cos(this.orbitAngle * 2));
+      this.camera.position.z = Math.cos(this.orbitAngle) * radius - 2;
+      this.camera.lookAt(this._cameraX, 0.5, -1.5);
+      this.camera.fov = this.baseFov;
+    } else if (this.cameraMode === 'cinematic') {
+      this.camera.position.x = this._cameraX + Math.sin(this.raceTime * 0.3) * 4;
+      this.camera.position.y = 0.5;
+      this.camera.position.z = -5;
+      this.camera.lookAt(this._cameraX, 0.5, -1.5);
+      this.camera.fov = 90;
+    } else if (this.cameraMode === 'free') {
+      this.camera.position.copy(this.freeCameraPos);
+      this.camera.rotation.copy(this.freeCameraRot);
+      this.camera.fov = this.baseFov;
+    }
+
+    this.camera.updateProjectionMatrix();
+
+    const wheelTargetRot = -this._cameraX * 0.18;
+    this.wheelAngle += (wheelTargetRot - this.wheelAngle) * 0.12;
+    this.wheelGroup.rotation.z = this.wheelAngle;
+
+    this.cockpitGroup.position.x = this._cameraX;
+
+    this.headlight1.target.position.set(this._cameraX - 1.5, 0, -20);
+    this.headlight2.target.position.set(this._cameraX + 1.5, 0, -20);
+  }
+
+  public render(): void {
     this.postProcessor.render(this.scene, this.camera);
   }
 

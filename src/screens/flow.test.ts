@@ -3,6 +3,8 @@ import { NavigationSystem } from '../ui/core/NavigationSystem';
 import { buildFlow, type FlowApi } from './flow';
 import type { TrackId } from './TrackSelectScreen';
 import type { ModeId } from './ModeSelectScreen';
+import type { GarageScreen } from './GarageScreen';
+import type { HowToPlayScreen } from './HowToPlayScreen';
 
 vi.mock('../ui/core/AnimationSystem', () => ({
   AnimationSystem: {
@@ -66,6 +68,8 @@ describe('game flow wiring', () => {
     buildFlow(nav, {
       getBestScore: () => 999,
       settings,
+      garage: { onBack: vi.fn() } as unknown as GarageScreen,
+      howToPlay: { onBack: vi.fn() } as unknown as HowToPlayScreen,
       startRace: (track, mode) => started.push({ track, mode }),
     });
   });

@@ -41,6 +41,10 @@ export class PostProcessor {
   public bloomThreshold = 0.62;
   public enabled = true;
 
+  // Photo Mode Filters
+  public contrast = 1.0;
+  public grain = 0.0;
+
   constructor(renderer: THREE.WebGLRenderer, width: number, height: number) {
     this.renderer = renderer;
     this.width = width;
@@ -106,12 +110,15 @@ export class PostProcessor {
       depthTest: false,
     });
 
-    // Composite
+    // Composite pass (Tone mapping + Bloom + Filters)
     this.compositeMat = new THREE.ShaderMaterial({
       uniforms: {
         tScene: { value: null },
         tBloom: { value: null },
         strength: { value: this.bloomStrength },
+        contrast: { value: this.contrast },
+        grain: { value: this.grain },
+        time: { value: 0 },
       },
       vertexShader: PASSTHROUGH_VERT,
       fragmentShader: COMPOSITE_FRAG,
@@ -162,6 +169,9 @@ export class PostProcessor {
     this.compositeMat.uniforms.tScene.value = this.sceneRT.texture;
     this.compositeMat.uniforms.tBloom.value = this.blurVRT.texture;
     this.compositeMat.uniforms.strength.value = this.bloomStrength;
+    this.compositeMat.uniforms.contrast.value = this.contrast;
+    this.compositeMat.uniforms.grain.value = this.grain;
+    this.compositeMat.uniforms.time.value = performance.now() / 1000.0;
     this.renderPass(this.compositeMat, null);
   }
 
@@ -237,7 +247,15 @@ const COMPOSITE_FRAG = /* glsl */ `
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
   uniform float strength;
+  uniform float contrast;
+  uniform float grain;
+  uniform float time;
   varying vec2 vUv;
+  
+  float rand(vec2 co) {
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+  }
+
   void main() {
     vec4 scene = texture2D(tScene, vUv);
     vec4 bloom = texture2D(tBloom, vUv);
@@ -245,6 +263,16 @@ const COMPOSITE_FRAG = /* glsl */ `
     vec3 combined = scene.rgb + bloom.rgb * strength;
     combined = combined / (combined + vec3(1.0));
     combined = pow(combined, vec3(1.0 / 2.2)); // gamma correction
+    
+    // Contrast
+    combined = (combined - 0.5) * contrast + 0.5;
+    
+    // Film grain
+    if (grain > 0.0) {
+      float noise = (rand(vUv * time) - 0.5) * grain;
+      combined += noise;
+    }
+    
     gl_FragColor = vec4(combined, scene.a);
   }
 `;
