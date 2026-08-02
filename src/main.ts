@@ -1194,18 +1194,25 @@ async function init(): Promise<void> {
 
   tracker = new HandTracker(video, onHandData);
   tracker.setSmoothing(1 - (saveManager.sensitivity / 100) * 0.6);
-  try {
-    await tracker.start();
-    cameraActive = true;
-    camError.classList.add('hidden');
-  } catch {
-    cameraActive = false;
-    camError.classList.remove('hidden');
-    camError.querySelectorAll('span')[1].textContent = 'Camera permission denied';
-    faceLabel.style.display = 'none';
-    handLeftLabel.style.display = 'none';
-    handRightLabel.style.display = 'none';
-  }
+
+  const camStartBtn = document.getElementById('cam-start-btn') as HTMLButtonElement;
+  const camStartWrap = document.getElementById('cam-start-wrap') as HTMLElement;
+  camStartBtn.addEventListener('click', async () => {
+    camStartWrap.style.display = 'none';
+    try {
+      await tracker.start();
+      cameraActive = true;
+      camError.classList.add('hidden');
+    } catch {
+      cameraActive = false;
+      camError.classList.remove('hidden');
+      camError.querySelectorAll('span')[1].textContent = 'Camera permission denied';
+      faceLabel.style.display = 'none';
+      handLeftLabel.style.display = 'none';
+      handRightLabel.style.display = 'none';
+      camStartWrap.style.display = 'flex';
+    }
+  });
 
   window.addEventListener('beforeunload', () => {
     game?.dispose();
