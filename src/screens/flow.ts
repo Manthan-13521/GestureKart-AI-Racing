@@ -4,6 +4,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { MainMenuScreen } from './MainMenuScreen';
 import { TrackSelectScreen, type TrackId } from './TrackSelectScreen';
 import { ModeSelectScreen, type ModeId } from './ModeSelectScreen';
+import { LobbyScreen } from './LobbyScreen';
 import { GameplayScreen } from './GameplayScreen';
 import { SettingsScreen, type SettingsApi } from './SettingsScreen';
 
@@ -85,12 +86,16 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       screen.trackId = lastTrack;
       screen.onSelect = (modeId) => {
         lastMode = modeId;
-        void nav.go('loading', {
-          label: 'Preparing race',
-          next: 'gameplay',
-          track: lastTrack,
-          mode: modeId,
-        });
+        if (modeId === 'multiplayer') {
+          void nav.go('lobby', { track: lastTrack });
+        } else {
+          void nav.go('loading', {
+            label: 'Preparing race',
+            next: 'gameplay',
+            track: lastTrack,
+            mode: modeId,
+          });
+        }
       };
       screen.onBack = () => void nav.go('track-select', {}, { transition: 'slide-right' });
       return screen;
@@ -104,6 +109,25 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
         lastTrack = track;
         lastMode = mode;
         api.startRace(track, mode);
+      };
+      return screen;
+    },
+  });
+
+  nav.register('lobby', {
+    create: () => {
+      const screen = new LobbyScreen();
+      screen.onBack = () => void nav.go('mode-select', {}, { transition: 'slide-right' });
+      screen.onStartRace = (_hostId, _isHost) => {
+        // We pass the network manager instance to gameplay through a global or directly to api.
+        // Actually, nav params are accessible in gameplay screen if we pass them.
+        void nav.go('loading', {
+          label: 'Syncing grid...',
+          next: 'gameplay',
+          track: lastTrack,
+          mode: 'multiplayer',
+          network: screen.getNetworkInstance(),
+        });
       };
       return screen;
     },
