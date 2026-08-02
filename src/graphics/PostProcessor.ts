@@ -211,6 +211,7 @@ const PASSTHROUGH_VERT = /* glsl */ `
 `;
 
 const THRESHOLD_FRAG = /* glsl */ `
+  precision highp float;
   uniform sampler2D tScene;
   uniform float threshold;
   varying vec2 vUv;
@@ -223,6 +224,7 @@ const THRESHOLD_FRAG = /* glsl */ `
 `;
 
 const BLUR_FRAG = /* glsl */ `
+  precision highp float;
   uniform sampler2D tDiffuse;
   uniform vec2 resolution;
   uniform vec2 direction;
@@ -244,6 +246,7 @@ const BLUR_FRAG = /* glsl */ `
 `;
 
 const COMPOSITE_FRAG = /* glsl */ `
+  precision highp float;
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
   uniform float strength;

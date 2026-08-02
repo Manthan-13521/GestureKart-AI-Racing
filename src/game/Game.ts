@@ -43,6 +43,8 @@ export class Game {
   private obstacles: THREE.Group[] = [];
   private maxObstacles = 10;
 
+  public gesturesEnabled = false;
+
   private _speed = 0;
   private baseSpeed = 0.2;
   private score = 0;
@@ -734,7 +736,12 @@ export class Game {
 
     this.spawnTimer += dt;
     const interval = Math.max(18, this.spawnInterval - this._speed * 30);
-    if (this.spawnTimer >= interval && this._handsDetected >= 2 && this.raceTime > 3) {
+    if (
+      this.spawnTimer >= interval &&
+      this._handsDetected >= 2 &&
+      this.raceTime > 3 &&
+      this.gesturesEnabled
+    ) {
       this.spawnTimer = 0;
       this.spawnCar();
     }

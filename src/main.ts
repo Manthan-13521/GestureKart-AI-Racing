@@ -1202,6 +1202,7 @@ async function init(): Promise<void> {
     try {
       await tracker.start();
       cameraActive = true;
+      if (game) game.gesturesEnabled = true;
       camError.classList.add('hidden');
     } catch {
       cameraActive = false;
