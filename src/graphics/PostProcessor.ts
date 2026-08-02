@@ -54,7 +54,6 @@ export class PostProcessor {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
       format: THREE.RGBAFormat,
-      type: THREE.HalfFloatType,
     };
 
     this.sceneRT = new THREE.WebGLRenderTarget(width, height, rtOpts);
@@ -117,8 +116,6 @@ export class PostProcessor {
         tBloom: { value: null },
         strength: { value: this.bloomStrength },
         contrast: { value: this.contrast },
-        grain: { value: this.grain },
-        time: { value: 0 },
       },
       vertexShader: PASSTHROUGH_VERT,
       fragmentShader: COMPOSITE_FRAG,
@@ -170,8 +167,6 @@ export class PostProcessor {
     this.compositeMat.uniforms.tBloom.value = this.blurVRT.texture;
     this.compositeMat.uniforms.strength.value = this.bloomStrength;
     this.compositeMat.uniforms.contrast.value = this.contrast;
-    this.compositeMat.uniforms.grain.value = this.grain;
-    this.compositeMat.uniforms.time.value = performance.now() / 1000.0;
     this.renderPass(this.compositeMat, null);
   }
 
@@ -251,14 +246,8 @@ const COMPOSITE_FRAG = /* glsl */ `
   uniform sampler2D tBloom;
   uniform float strength;
   uniform float contrast;
-  uniform float grain;
-  uniform float time;
   varying vec2 vUv;
   
-  float rand(vec2 co) {
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-  }
-
   void main() {
     vec4 scene = texture2D(tScene, vUv);
     vec4 bloom = texture2D(tBloom, vUv);
@@ -269,12 +258,6 @@ const COMPOSITE_FRAG = /* glsl */ `
     
     // Contrast
     combined = (combined - 0.5) * contrast + 0.5;
-    
-    // Film grain
-    if (grain > 0.0) {
-      float noise = (rand(vUv * time) - 0.5) * grain;
-      combined += noise;
-    }
     
     gl_FragColor = vec4(combined, scene.a);
   }
