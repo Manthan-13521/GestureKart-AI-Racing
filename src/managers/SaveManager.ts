@@ -1,11 +1,15 @@
 export interface SaveData {
+  version: number;
   sensitivity: number;
   autoAccelerate: boolean;
   gyroscopeMode: boolean;
   bestScore: number;
 }
 
+const SAVE_VERSION = 1;
+
 const DEFAULT_DATA: SaveData = {
+  version: SAVE_VERSION,
   sensitivity: 75,
   autoAccelerate: false,
   gyroscopeMode: false,
