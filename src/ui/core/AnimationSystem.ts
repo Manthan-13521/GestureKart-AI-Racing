@@ -115,6 +115,7 @@ export const AnimationSystem = {
     const duration = durationFor(opts.duration);
     if (duration === 0) return;
     const kf = keyframesFor(kind, opts.distance ?? 28);
+    if (typeof el.animate !== 'function') return;
     const anim = el.animate(kf, {
       duration,
       delay: opts.delay ?? 0,

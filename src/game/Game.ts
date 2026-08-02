@@ -52,7 +52,7 @@ export class Game {
 
   private centerX = 0.5;
   private _handsDetected = 0;
-  private cameraX = 0;
+  private _cameraX = 0;
   private smoothSteer = new SmoothFilter(0.45, 0);
   private sensitivity = 1.0;
 
@@ -116,6 +116,9 @@ export class Game {
   get handsDetected(): number {
     return this._handsDetected;
   }
+  get cameraX(): number {
+    return this._cameraX;
+  }
   get steerCenterX(): number {
     return this.centerX;
   }
@@ -124,6 +127,11 @@ export class Game {
   }
   get speed(): number {
     return this._speed;
+  }
+
+  /** Read-only access to the 3D scene for engine subsystems (replay/ghost). */
+  get scene3d(): THREE.Scene {
+    return this.scene;
   }
 
   private get difficulty(): number {
@@ -196,7 +204,7 @@ export class Game {
     this.lap = 1;
     this.position = 2;
     this.spawnTimer = 0;
-    this.cameraX = 0;
+    this._cameraX = 0;
     this.smoothSteer.reset(0);
     this.shakeIntensity = 0;
     this._justCollided = false;
@@ -630,8 +638,8 @@ export class Game {
           : (rawSteer + deadZone) / (1 - deadZone);
     steerInput = Math.sign(steerInput) * Math.pow(Math.abs(steerInput), 0.85);
     const targetX = steerInput * 5;
-    this.cameraX = this.smoothSteer.update(targetX);
-    this.cameraX = Math.max(-4, Math.min(4, this.cameraX));
+    this._cameraX = this.smoothSteer.update(targetX);
+    this._cameraX = Math.max(-4, Math.min(4, this._cameraX));
 
     this._justCollided = false;
     if (this.shakeIntensity > 0.01) {
@@ -644,22 +652,22 @@ export class Game {
     const shakeY = (Math.random() - 0.5) * this.shakeIntensity * 0.5;
     const rollExtra = (Math.random() - 0.5) * this.shakeIntensity * 0.04;
 
-    this.camera.position.x = this.cameraX + shakeX;
+    this.camera.position.x = this._cameraX + shakeX;
     this.camera.position.y = CAM_Y + shakeY;
-    this.camera.rotation.z = this.cameraX * -0.025 + rollExtra;
+    this.camera.rotation.z = this._cameraX * -0.025 + rollExtra;
 
     const fovBoost = this._speed * 2.5;
     this.camera.fov = this.baseFov + fovBoost;
     this.camera.updateProjectionMatrix();
 
-    const wheelTargetRot = -this.cameraX * 0.18;
+    const wheelTargetRot = -this._cameraX * 0.18;
     this.wheelAngle += (wheelTargetRot - this.wheelAngle) * 0.12;
     this.wheelGroup.rotation.z = this.wheelAngle;
 
-    this.cockpitGroup.position.x = this.cameraX;
+    this.cockpitGroup.position.x = this._cameraX;
 
-    this.headlight1.target.position.set(this.cameraX - 1.5, 0, -20);
-    this.headlight2.target.position.set(this.cameraX + 1.5, 0, -20);
+    this.headlight1.target.position.set(this._cameraX - 1.5, 0, -20);
+    this.headlight2.target.position.set(this._cameraX + 1.5, 0, -20);
 
     const moveAmount = this._speed * dt;
     for (const seg of this.segments) {
@@ -686,7 +694,7 @@ export class Game {
         continue;
       }
 
-      const dx = Math.abs(this.cameraX - car.position.x);
+      const dx = Math.abs(this._cameraX - car.position.x);
       const dz = Math.abs(car.position.z);
       if (dx < 1.5 && dz < 2.5) {
         this._gameOver = true;

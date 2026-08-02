@@ -324,6 +324,24 @@
             </div>
           </div>
 
+          <!-- ─── Ghost HUD ─── -->
+          <div class="ghost-hud hidden" id="ghost-hud">
+            <div class="ghost-hud-row">
+              <span class="ghost-hud-label">GHOST</span>
+              <span class="ghost-hud-delta ahead" id="ghost-delta">+0.00</span>
+              <span class="ghost-hud-state" id="ghost-state">TIED</span>
+            </div>
+            <div class="ghost-hud-row ghost-hud-times">
+              <span>BEST <b id="ghost-best">1:30</b></span>
+              <span>NOW <b id="ghost-now">0:00</b></span>
+            </div>
+            <div class="ghost-hud-sectors" id="ghost-sectors">
+              <span class="ghost-sector" id="ghost-sec-0">S1 —</span>
+              <span class="ghost-sector" id="ghost-sec-1">S2 —</span>
+              <span class="ghost-sector" id="ghost-sec-2">S3 —</span>
+            </div>
+          </div>
+
           <!-- ─── Menu / HowToPlay / Settings overlays replaced by UI framework screens ─── -->
 
           <!-- ─── Countdown Overlay ─── -->
@@ -350,6 +368,7 @@
                 <span class="results-label">SCORE</span>
                 <span class="results-score" id="final-score">0</span>
               </div>
+              <div class="results-ghost-line hidden" id="results-ghost-line"></div>
               <div class="results-divider"></div>
               <div class="results-actions">
                 <button class="results-btn results-btn-primary" id="results-retry">RACE AGAIN</button>

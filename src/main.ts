@@ -13,7 +13,9 @@ import { FocusRing } from './ui/core/FocusRing';
 import { NotificationSystem } from './ui/core/NotificationSystem';
 import { SoundHooks } from './ui/core/SoundHooks';
 import { ThemeManager } from './ui/ThemeManager';
-import { buildFlow, type FlowApi } from './screens/flow';
+import { buildFlow, lastSelection, type FlowApi } from './screens/flow';
+import { ReplayRuntime, GhostHud } from './replay';
+import type { ReplayOutcome } from './replay';
 import type { TrackId } from './screens/TrackSelectScreen';
 import type { ModeId } from './screens/ModeSelectScreen';
 import './ui/ui.css';
@@ -77,6 +79,7 @@ const collisionFlash = document.getElementById('collision-flash')!;
 
 const resultsRetry = document.getElementById('results-retry')!;
 const resultsMenu = document.getElementById('results-menu')!;
+const resultsGhostLine = document.getElementById('results-ghost-line')!;
 
 const touchAuto = document.getElementById('touch-auto')!;
 const touchModeLabel = document.getElementById('touch-mode-label')!;
@@ -90,6 +93,7 @@ let game: Game;
 let tracker: HandTracker;
 let cameraActive = false;
 let handTrackingActive = false;
+let replayRuntime: ReplayRuntime;
 
 // Countdown
 let countdownActive = false;
@@ -386,15 +390,44 @@ bus.on(AppEvents.gyroToggle, (on: boolean) => {
 });
 
 // ─── Screen state → overlays ───────────────────────────────────────
-stateMachine.onChange((_from, to) => {
+stateMachine.onChange((from, to) => {
   ui.sync(to);
   if (to === 'gameover') {
-    const score = Math.floor(game.getState().score);
+    const state = game.getState();
+    const score = Math.floor(state.score);
     ui.finalScore.textContent = `${score}`;
     saveManager.setBestScore(score);
+
+    const outcome = replayRuntime.finish(score, state.raceTime);
+    updateResultsGhostLine(outcome);
     SoundHooks.raceFinish();
   }
 });
+
+// ─── Race start (single path: resets game, starts replay clock) ────
+function startGame(): void {
+  game.start();
+  stateMachine.set('racing');
+  replayRuntime.begin(game.getState().raceDuration);
+}
+
+function updateResultsGhostLine(outcome: ReplayOutcome): void {
+  if (!outcome.ghostPresent) {
+    resultsGhostLine.classList.add('hidden');
+    resultsGhostLine.textContent = '';
+    return;
+  }
+  resultsGhostLine.classList.remove('hidden');
+  if (outcome.newBest && outcome.beatGhost) {
+    resultsGhostLine.textContent = `NEW RECORD · GHOST BEATEN +${outcome.distDelta.toFixed(1)}m`;
+  } else if (outcome.newBest) {
+    resultsGhostLine.textContent = `NEW RECORD`;
+  } else if (outcome.beatGhost) {
+    resultsGhostLine.textContent = `GHOST BEATEN +${outcome.distDelta.toFixed(1)}m`;
+  } else {
+    resultsGhostLine.textContent = `GHOST AHEAD −${(-outcome.distDelta).toFixed(1)}m`;
+  }
+}
 
 // ─── Countdown ─────────────────────────────────────────────────────
 function startCountdown(callback: () => void): void {
@@ -464,10 +497,7 @@ function onKeysChanged(newKeys: GameKeys): void {
         if (s === 'landing') return;
         if (s === 'menu') return;
         cancelCountdown();
-        startCountdown(() => {
-          game.start();
-          stateMachine.set('racing');
-        });
+        startCountdown(startGame);
       }
     } else if (newKeys.left || newKeys.right) {
       const steerX = newKeys.left ? 0 : 1;
@@ -497,10 +527,7 @@ function onHandData(data: HandData): void {
     if (s === 'menu') return;
     if (s === 'howtoplay') return;
     if (s === 'settings') return;
-    startCountdown(() => {
-      game.start();
-      stateMachine.set('racing');
-    });
+    startCountdown(startGame);
   }
 
   drawCamOverlay(data);
@@ -534,10 +561,7 @@ function gameLoop(): void {
         const s = stateMachine.get();
         if (s === 'landing') return;
         if (s === 'menu') return;
-        startCountdown(() => {
-          game.start();
-          stateMachine.set('racing');
-        });
+        startCountdown(startGame);
       }
     }
     // Gyroscope layer
@@ -595,6 +619,8 @@ function gameLoop(): void {
     if (desired !== s) {
       stateMachine.set(desired);
     }
+
+    replayRuntime.tick(state.raceTime, game.cameraX, state.speed);
   }
 
   requestAnimationFrame(gameLoop);
@@ -628,10 +654,7 @@ function applyTouchState(): void {
       if (s === 'landing') return;
       if (s === 'menu') return;
       cancelCountdown();
-      startCountdown(() => {
-        game.start();
-        stateMachine.set('racing');
-      });
+      startCountdown(startGame);
     }
   } else if (touch.left) {
     game.setHandData(0, inputManager.autoAccelerate ? 2 : 1);
@@ -701,6 +724,12 @@ async function init(): Promise<void> {
   game = new Game(gc, resources);
   handleResize();
   window.addEventListener('resize', handleResize);
+
+  replayRuntime = new ReplayRuntime({
+    scene: game.scene3d,
+    hud: new GhostHud(),
+    onNotice: (message) => notify.notify('Ghost', message),
+  });
 
   // Restore persisted settings
   inputManager.autoAccelerate = saveManager.autoAccelerate;
@@ -798,10 +827,8 @@ async function init(): Promise<void> {
     inputManager.setAutoAccelerate(true);
     stateMachine.set('ready');
     cancelCountdown();
-    startCountdown(() => {
-      game.start();
-      stateMachine.set('racing');
-    });
+    replayRuntime.arm(trackId, modeId);
+    startCountdown(startGame);
     notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
   };
 
@@ -819,15 +846,15 @@ async function init(): Promise<void> {
   // Results buttons
   resultsRetry.addEventListener('click', () => {
     cancelCountdown();
-    startCountdown(() => {
-      game.start();
-      stateMachine.set('racing');
-    });
+    const last = lastSelection();
+    replayRuntime.arm(last.track, last.mode);
+    startCountdown(startGame);
   });
 
   resultsMenu.addEventListener('click', () => {
     cancelCountdown();
     stateMachine.set('landing');
+    replayRuntime.abort();
     showMenu();
     void nav.reset('menu');
   });
@@ -835,6 +862,7 @@ async function init(): Promise<void> {
   navTitle.addEventListener('click', () => {
     stateMachine.set('landing');
     if (game) game.setGameOver();
+    replayRuntime.abort();
     showMenu();
     void nav.reset('menu');
   });
@@ -871,6 +899,7 @@ async function init(): Promise<void> {
   window.addEventListener('beforeunload', () => {
     game?.dispose();
     audioManager.dispose();
+    replayRuntime?.dispose();
   });
 
   updateStatus();

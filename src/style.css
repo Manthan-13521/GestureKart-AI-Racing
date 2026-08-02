@@ -872,6 +872,79 @@ body {
   color: var(--text3);
 }
 
+/* ─── Ghost HUD ────────────────────────────────────────────────────── */
+.ghost-hud {
+  position: absolute;
+  top: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  z-index: 18;
+  pointer-events: none;
+}
+.ghost-hud.hidden {
+  display: none;
+}
+.ghost-hud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text2);
+  text-shadow: 0 0 6px rgba(34, 230, 255, 0.3);
+}
+.ghost-hud-label {
+  background: rgba(34, 230, 255, 0.12);
+  border: 1px solid rgba(34, 230, 255, 0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 700;
+  font-size: 10px;
+  color: #22e6ff;
+  letter-spacing: 0.12em;
+}
+.ghost-hud-delta {
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--green);
+}
+.ghost-hud-delta:not(.ahead) {
+  color: var(--red);
+}
+.ghost-hud-state {
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.ghost-hud-times {
+  font-size: 10px;
+  gap: 18px;
+  opacity: 0.75;
+}
+.ghost-hud-times b {
+  font-weight: 700;
+  color: var(--text1);
+}
+.ghost-hud-sectors {
+  display: flex;
+  gap: 14px;
+  margin-top: 2px;
+}
+.ghost-sector {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+}
+.ghost-sector.ahead {
+  color: var(--green);
+}
+
 /* ================================================================
    GAME OVERLAYS
    ================================================================ */
@@ -1269,6 +1342,20 @@ body {
   width: 60px;
   height: 1px;
   background: var(--border-bright);
+}
+
+.results-ghost-line {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+  margin-bottom: 4px;
+}
+.results-ghost-line.hidden {
+  display: none;
 }
 
 .results-actions {
