@@ -375,7 +375,50 @@
               <div class="results-divider"></div>
               <div class="results-actions">
                 <button class="results-btn results-btn-primary" id="results-retry">RACE AGAIN</button>
+                <button class="results-btn results-btn-secondary" id="results-replay" style="display: none">
+                  WATCH REPLAY
+                </button>
                 <button class="results-btn results-btn-secondary" id="results-menu">MAIN MENU</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── Replay Overlay ─── -->
+          <div class="replay-overlay hidden" id="replay-overlay">
+            <div class="replay-top-bar">
+              <div class="replay-title">REPLAY VIEWER</div>
+              <button class="replay-btn" id="replay-close">EXIT</button>
+            </div>
+
+            <div class="replay-bottom-bar">
+              <div class="replay-controls">
+                <button class="replay-icon-btn" id="replay-play-pause">&#9208;</button>
+                <div class="replay-timeline">
+                  <input type="range" id="replay-scrubber" min="0" max="100" value="0" step="0.1" />
+                </div>
+              </div>
+
+              <div class="replay-toolbar">
+                <div class="replay-tool-group">
+                  <span class="replay-tool-label">CAMERA</span>
+                  <button class="replay-btn active" id="replay-cam-chase">CHASE</button>
+                  <button class="replay-btn" id="replay-cam-orbit">ORBIT</button>
+                  <button class="replay-btn" id="replay-cam-cine">CINE</button>
+                </div>
+
+                <div class="replay-tool-group">
+                  <span class="replay-tool-label">FILTERS</span>
+                  <div class="replay-slider-wrap">
+                    <span>GRAIN</span>
+                    <input type="range" id="replay-filter-grain" min="0" max="1" value="0" step="0.05" />
+                  </div>
+                  <div class="replay-slider-wrap">
+                    <span>CONTRAST</span>
+                    <input type="range" id="replay-filter-contrast" min="0.5" max="2" value="1" step="0.1" />
+                  </div>
+                </div>
+
+                <button class="replay-btn replay-btn-accent" id="replay-photo">PHOTO MODE</button>
               </div>
             </div>
           </div>

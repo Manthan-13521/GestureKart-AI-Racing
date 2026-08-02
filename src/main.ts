@@ -7,6 +7,7 @@ import { ResourceManager } from './managers/ResourceManager';
 import { AudioManager } from './managers/AudioManager';
 import { SaveManager } from './managers/SaveManager';
 import { InputManager } from './managers/InputManager';
+import { profileManager } from './managers/ProfileManager';
 import { UIManager } from './managers/UIManager';
 import { NavigationSystem } from './ui/core/NavigationSystem';
 import { FocusRing } from './ui/core/FocusRing';
@@ -85,8 +86,18 @@ const speedVignette = document.getElementById('speed-vignette')!;
 const collisionFlash = document.getElementById('collision-flash')!;
 
 const resultsRetry = document.getElementById('results-retry')!;
+const resultsReplay = document.getElementById('results-replay')!;
 const resultsMenu = document.getElementById('results-menu')!;
 const resultsGhostLine = document.getElementById('results-ghost-line')!;
+
+const replayOverlay = document.getElementById('replay-overlay')!;
+const replayClose = document.getElementById('replay-close')!;
+const replayCamChase = document.getElementById('replay-cam-chase')!;
+const replayCamOrbit = document.getElementById('replay-cam-orbit')!;
+const replayCamCine = document.getElementById('replay-cam-cine')!;
+const replayFilterGrain = document.getElementById('replay-filter-grain') as HTMLInputElement;
+const replayFilterContrast = document.getElementById('replay-filter-contrast') as HTMLInputElement;
+const replayPhoto = document.getElementById('replay-photo')!;
 
 const touchAuto = document.getElementById('touch-auto')!;
 const touchModeLabel = document.getElementById('touch-mode-label')!;
@@ -115,6 +126,7 @@ const NET_SEND_INTERVAL = 50; // ms
 // Countdown
 let countdownActive = false;
 let countdownInterval: ReturnType<typeof setInterval> | null = null;
+let isReplaying = false;
 
 let overlayFps = 0;
 let fpsCounter = 0;
@@ -425,6 +437,10 @@ stateMachine.onChange((from, to) => {
       if (currentModeId === 'ai-race') {
         const finishPos = raceDirector ? raceDirector.getState().position : 6;
         const res = tournamentManager.recordFinish(finishPos);
+
+        // Phase 8: Profile Progression
+        profileManager.addRewards(res.xpAwarded, res.coinsAwarded);
+
         victoryCeremony.show(ceremonyContainer, {
           position: finishPos,
           pointsAwarded: res.pointsAwarded,
@@ -528,21 +544,25 @@ function startGame(): void {
 }
 
 function updateResultsGhostLine(outcome: ReplayOutcome): void {
-  if (!outcome.ghostPresent) {
-    resultsGhostLine.classList.add('hidden');
-    resultsGhostLine.textContent = '';
-    return;
-  }
-  resultsGhostLine.classList.remove('hidden');
+  // Set text first so it is available regardless of visibility
   if (outcome.newBest && outcome.beatGhost) {
     resultsGhostLine.textContent = `NEW RECORD · GHOST BEATEN +${outcome.distDelta.toFixed(1)}m`;
   } else if (outcome.newBest) {
     resultsGhostLine.textContent = `NEW RECORD`;
   } else if (outcome.beatGhost) {
     resultsGhostLine.textContent = `GHOST BEATEN +${outcome.distDelta.toFixed(1)}m`;
-  } else {
+  } else if (outcome.ghostPresent) {
     resultsGhostLine.textContent = `GHOST AHEAD −${(-outcome.distDelta).toFixed(1)}m`;
+  } else {
+    resultsGhostLine.textContent = '';
   }
+
+  // Toggle visibility
+  const shouldShow = outcome.ghostPresent || outcome.newBest;
+  resultsGhostLine.classList.toggle('hidden', !shouldShow);
+
+  // Show replay button if player drove enough distance
+  resultsReplay.style.display = game && game.playerDistance > 100 ? 'block' : 'none';
 }
 
 // ─── Countdown ─────────────────────────────────────────────────────
@@ -826,6 +846,10 @@ function gameLoop(): void {
         game.setPosition(raceState.position, raceState.totalCars);
       }
     }
+
+    if (isReplaying) {
+      game.updateCamera(1 / 60);
+    }
   }
 
   requestAnimationFrame(gameLoop);
@@ -1046,6 +1070,8 @@ async function init(): Promise<void> {
   buildFlow(nav, {
     getBestScore: () => saveManager.bestScore,
     settings: settingsApi,
+    garage: new (await import('./screens/GarageScreen')).GarageScreen(),
+    howToPlay: new (await import('./screens/HowToPlayScreen')).HowToPlayScreen(),
     startRace: (trackId, modeId, network) => startRace(trackId, modeId, network),
   });
   void nav.go('splash');
@@ -1057,6 +1083,80 @@ async function init(): Promise<void> {
     const last = lastSelection();
     replayRuntime.arm(last.track, last.mode);
     startCountdown(startGame);
+  });
+
+  resultsReplay.addEventListener('click', () => {
+    victoryCeremony.stop();
+    ui.sync('racing'); // hide game over overlay
+    replayOverlay.classList.remove('hidden');
+    isReplaying = true;
+
+    // Switch to Replay Camera Mode
+    game.cameraMode = 'orbit';
+    replayCamOrbit.classList.add('active');
+    replayCamChase.classList.remove('active');
+    replayCamCine.classList.remove('active');
+  });
+
+  replayClose.addEventListener('click', () => {
+    isReplaying = false;
+    replayOverlay.classList.add('hidden');
+    game.cameraMode = 'chase';
+    // Reset photo-mode filters to defaults
+    if (game.postProcessor) {
+      game.postProcessor.grain = 0;
+      game.postProcessor.contrast = 1.0;
+    }
+    replayFilterGrain.value = '0';
+    replayFilterContrast.value = '1';
+    ui.sync('gameover');
+  });
+
+  replayCamChase.addEventListener('click', () => {
+    game.cameraMode = 'chase';
+    replayCamChase.classList.add('active');
+    replayCamOrbit.classList.remove('active');
+    replayCamCine.classList.remove('active');
+  });
+
+  replayCamOrbit.addEventListener('click', () => {
+    game.cameraMode = 'orbit';
+    replayCamOrbit.classList.add('active');
+    replayCamChase.classList.remove('active');
+    replayCamCine.classList.remove('active');
+  });
+
+  replayCamCine.addEventListener('click', () => {
+    game.cameraMode = 'cinematic';
+    replayCamCine.classList.add('active');
+    replayCamChase.classList.remove('active');
+    replayCamOrbit.classList.remove('active');
+  });
+
+  replayFilterGrain.addEventListener('input', () => {
+    if (game.postProcessor) {
+      game.postProcessor.grain = parseFloat(replayFilterGrain.value);
+    }
+  });
+
+  replayFilterContrast.addEventListener('input', () => {
+    if (game.postProcessor) {
+      game.postProcessor.contrast = parseFloat(replayFilterContrast.value);
+    }
+  });
+
+  replayPhoto.addEventListener('click', () => {
+    // Briefly hide UI and take screenshot
+    replayOverlay.classList.add('hidden');
+    setTimeout(() => {
+      game.renderer.render(game.scene, game.camera);
+      const data = game.renderer.domElement.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = data;
+      a.download = 'virtual-steering-photo.png';
+      a.click();
+      replayOverlay.classList.remove('hidden');
+    }, 100);
   });
 
   resultsMenu.addEventListener('click', () => {

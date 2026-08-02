@@ -7,10 +7,14 @@ import { ModeSelectScreen, type ModeId } from './ModeSelectScreen';
 import { LobbyScreen } from './LobbyScreen';
 import { GameplayScreen } from './GameplayScreen';
 import { SettingsScreen, type SettingsApi } from './SettingsScreen';
+import { GarageScreen } from './GarageScreen';
+import { HowToPlayScreen } from './HowToPlayScreen';
 
 export interface FlowApi {
   getBestScore: () => number;
   settings: SettingsApi;
+  garage: GarageScreen;
+  howToPlay: HowToPlayScreen;
   startRace: (
     trackId: TrackId,
     modeId: ModeId,
@@ -56,18 +60,10 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       screen.bestScore = api.getBestScore();
       screen.onPlay = () => void nav.go('track-select');
       screen.onSettings = () => void nav.go('settings');
-      screen.onHowToPlay = () => {
-        void import('../ui/components/Dialog').then(({ showDialog }) =>
-          showDialog({
-            title: 'How to Play',
-            message:
-              'Steer with your hands, the arrow keys, or touch controls.\n\n' +
-              'Endless Survival is the only gesture mode — competitive modes use keyboard or gamepad.\n\n' +
-              'Avoid traffic, chain drifts, and survive the countdown.',
-            confirmLabel: 'Got it',
-          })
-        );
-      };
+      screen.onGarage = () => void nav.go('garage');
+      screen.onHowToPlay = () => void nav.go('how-to-play');
+      api.garage.onBack = () => void nav.go('menu');
+      api.howToPlay.onBack = () => void nav.go('menu');
       return screen;
     },
   });
@@ -123,8 +119,6 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       const screen = new LobbyScreen();
       screen.onBack = () => void nav.go('mode-select', {}, { transition: 'slide-right' });
       screen.onStartRace = (_hostId, _isHost) => {
-        // We pass the network manager instance to gameplay through a global or directly to api.
-        // Actually, nav params are accessible in gameplay screen if we pass them.
         void nav.go('loading', {
           label: 'Syncing grid...',
           next: 'gameplay',
@@ -141,6 +135,23 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
     create: () => {
       const screen = new SettingsScreen();
       screen.api = api.settings;
+      api.settings.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('garage', {
+    create: () => {
+      const screen = api.garage;
+      screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('how-to-play', {
+    create: () => {
+      const screen = api.howToPlay;
+      screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
       return screen;
     },
   });
