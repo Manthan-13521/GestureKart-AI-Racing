@@ -23,6 +23,25 @@ export interface AnimOptions {
 }
 
 const EASE = MotionTokens.easing.out;
+const SPRING = MotionTokens.easing.spring;
+const SNAP = MotionTokens.easing.snap;
+const IN_OUT = MotionTokens.easing.inOut;
+
+/** Per-kind easing map — the shared motion language. Every animation kind
+ *  has an intentional curve; nothing falls back to the browser default. */
+const EASE_BY_KIND: Record<AnimKind, string> = {
+  'fade-in': EASE,
+  'fade-out': EASE,
+  'slide-in-left': EASE,
+  'slide-in-right': EASE,
+  'slide-in-up': EASE,
+  'slide-out-left': SNAP,
+  'slide-out-right': SNAP,
+  'scale-in': SPRING,
+  'scale-out': SNAP,
+  'blur-in': IN_OUT,
+  'blur-out': IN_OUT,
+};
 
 function keyframesFor(kind: AnimKind, distance: number): Keyframe[] {
   const d = `${distance}px`;
@@ -99,7 +118,7 @@ export const AnimationSystem = {
     const anim = el.animate(kf, {
       duration,
       delay: opts.delay ?? 0,
-      easing: opts.easing ?? EASE,
+      easing: opts.easing ?? EASE_BY_KIND[kind],
       fill: opts.fill ?? 'both',
     });
     await anim.finished.catch(() => undefined);

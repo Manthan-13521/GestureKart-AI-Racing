@@ -2,7 +2,7 @@ import { Screen } from '../ui/components/Screen';
 import { AnimationSystem } from '../ui/core/AnimationSystem';
 import { SoundHooks } from '../ui/core/SoundHooks';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
-import { spawnParticles, spawnGrid } from './ambient';
+import { spawnParticles, spawnGrid, spawnAurora } from './ambient';
 
 /**
  * Cinematic brand splash: title reveal with blur, orbiting glow, ambient
@@ -23,6 +23,7 @@ export class SplashScreen extends Screen {
   protected build(_params: Record<string, unknown>): void {
     const onContinue = this.onContinue;
     spawnGrid(this.el);
+    spawnAurora(this.el);
     spawnParticles(this.el);
 
     const wrap = document.createElement('div');

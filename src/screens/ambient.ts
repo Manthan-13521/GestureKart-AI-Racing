@@ -29,3 +29,13 @@ export function spawnGrid(container: HTMLElement): HTMLElement {
   container.appendChild(grid);
   return grid;
 }
+
+/** Soft aurora light blobs for depth on hero screens. */
+export function spawnAurora(container: HTMLElement): void {
+  if (isMotionReduced()) return;
+  for (const variant of ['aurora--1', 'aurora--2'] as const) {
+    const blob = document.createElement('div');
+    blob.className = `aurora ${variant}`;
+    container.appendChild(blob);
+  }
+}

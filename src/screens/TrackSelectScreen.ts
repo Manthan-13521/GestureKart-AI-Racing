@@ -101,13 +101,15 @@ export class TrackSelectScreen extends Screen {
         focusable: true,
         onClick: () => {
           SoundHooks.confirm();
+          for (const other of cards) other.setSelected(false);
+          card.setSelected(true);
           this.onSelect?.(track.id);
         },
       });
       card.addMeta({ label: 'Difficulty', value: difficultyStars(track.difficulty) });
       card.addMeta({ label: 'Est. Duration', value: track.duration });
       card.setDescription(track.description);
-      if (selected === track.id) card.el.classList.add('is-selected');
+      if (selected === track.id) card.setSelected(true);
       grid.appendChild(card.el);
       return card;
     });
