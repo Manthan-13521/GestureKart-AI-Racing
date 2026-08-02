@@ -50,6 +50,11 @@ export class Game {
   private _gameOver = false;
   private _started = false;
 
+  /** When true, random obstacle spawning is suppressed (AI Race mode). */
+  private _raceMode: 'survival' | 'ai-race' | 'versus' = 'survival';
+  /** Cumulative distance driven, in metres — consumed by the AI runtime. */
+  private _playerDistance = 0;
+
   private centerX = 0.5;
   private _handsDetected = 0;
   private _cameraX = 0;
@@ -129,6 +134,16 @@ export class Game {
     return this._speed;
   }
 
+  /** Cumulative metres driven — used by AI runtime for distance ranking. */
+  get playerDistance(): number {
+    return this._playerDistance;
+  }
+
+  /** Current race mode. */
+  get raceMode(): string {
+    return this._raceMode;
+  }
+
   /** Read-only access to the 3D scene for engine subsystems (replay/ghost). */
   get scene3d(): THREE.Scene {
     return this.scene;
@@ -195,6 +210,17 @@ export class Game {
     this._started = false;
   }
 
+  /** Switch race mode — must be called BEFORE start(). */
+  setRaceMode(mode: 'survival' | 'ai-race' | 'versus'): void {
+    this._raceMode = mode;
+  }
+
+  /** Override the displayed race position (driven externally by RaceDirector). */
+  setPosition(pos: number, total: number): void {
+    this.position = pos;
+    this.totalCars = total;
+  }
+
   start(): void {
     this._started = true;
     this._gameOver = false;
@@ -202,9 +228,10 @@ export class Game {
     this._speed = this.baseSpeed;
     this.raceTime = 0;
     this.lap = 1;
-    this.position = 2;
+    this.position = this._raceMode === 'ai-race' ? 6 : 2;
     this.spawnTimer = 0;
     this._cameraX = 0;
+    this._playerDistance = 0;
     this.smoothSteer.reset(0);
     this.shakeIntensity = 0;
     this._justCollided = false;
@@ -212,9 +239,12 @@ export class Game {
     this.camera.updateProjectionMatrix();
     for (const c of this.obstacles) this.scene.remove(c);
     this.obstacles = [];
-    this.spawnCar();
-    this.spawnCar();
-    this.spawnCar();
+    // In AI race mode, no random traffic is spawned — the AI runtime owns the grid.
+    if (this._raceMode !== 'ai-race') {
+      this.spawnCar();
+      this.spawnCar();
+      this.spawnCar();
+    }
   }
 
   private setupLights(): void {
@@ -618,6 +648,9 @@ export class Game {
     } else {
       this._speed = Math.max(0.05, this._speed - 0.007 * dt);
     }
+
+    // Accumulate player distance for AI race ranking
+    this._playerDistance += this._speed * delta * 60 * 0.2;
 
     if (this.raceTime >= RACE_DURATION) {
       this._gameOver = true;
