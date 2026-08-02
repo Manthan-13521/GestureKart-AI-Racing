@@ -3,6 +3,7 @@
 Racing games sit at an unusually high-stress intersection of fast reaction times, color-coded information, and precise input — which means accessibility gaps here don't just inconvenience players, they actively exclude them from playing at all. This isn't a settings-menu checklist to bolt on at the end; build the redundancy into the components themselves from the start, per the SKILL.md non-negotiables.
 
 ## Contents
+
 - Contrast and legibility
 - Color-blind-safe design
 - HUD customization
@@ -17,7 +18,7 @@ Use these as concrete minimums, not aspirational targets — they're the same co
 
 - **Standard-size text and any HUD element carrying important information:** at least **4.5:1** contrast against its background.
 - **Large-scale text (roughly 18pt+/24px+ or bold 14pt+/19px+) and large visual elements:** at least **3:1**.
-- Since HUD elements sit over a constantly changing background (the track, the world), test contrast against the *worst-case* background, not just a convenient dark frame — a light-colored HUD element that reads fine over asphalt can disappear entirely over a bright sky or snow. A translucent dark panel or a text outline/drop-shadow behind HUD text is a common, effective fix.
+- Since HUD elements sit over a constantly changing background (the track, the world), test contrast against the _worst-case_ background, not just a convenient dark frame — a light-colored HUD element that reads fine over asphalt can disappear entirely over a bright sky or snow. A translucent dark panel or a text outline/drop-shadow behind HUD text is a common, effective fix.
 - Support a **text-size increase** (a meaningful step, not a token one — aim for the option to scale up to roughly 200% of default) for both HUD and menu text.
 - Offer a **high-contrast mode** as a real option, not just "increase brightness" — a mode that pushes toward pure, maximally-differentiated colors and stronger element outlines, for players with low vision.
 
@@ -60,7 +61,7 @@ Any information conveyed only through audio — engine pitch signaling speed, a 
 Run this against any screen before treating it as finished, not just at a project-wide accessibility pass:
 
 - [ ] Does every color-coded distinction survive with color removed (icon, shape, or position also carries it)?
-- [ ] Does HUD text pass 4.5:1 (or 3:1 for large elements) against its *worst-case* background, not just a convenient one?
+- [ ] Does HUD text pass 4.5:1 (or 3:1 for large elements) against its _worst-case_ background, not just a convenient one?
 - [ ] Can every menu be completed with a gamepad/keyboard alone, with visible focus at every step?
 - [ ] Can the player turn off or reduce screen shake, FOV-pull, and motion blur individually?
 - [ ] Does any flashing/strobing effect stay under roughly three flashes per second?

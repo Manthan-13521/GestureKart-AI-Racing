@@ -1,8 +1,9 @@
 # Genre Playbook
 
-Racing games split into a handful of subgenres with genuinely different UI conventions, built from surveying the interfaces of sim, arcade, kart, mobile, and time-trial racers across the genre's history — from the Ridge Racer and Mario Kart era through current titles like Gran Turismo 7, Forza Horizon, F1 25, Need for Speed Unbound, Mario Kart World, and Sonic Racing. This file is organized by *pattern*, not by a ranked list — rank doesn't tell you anything useful about what to build, but knowing which subgenre a project belongs to tells you almost everything about HUD density, menu depth, and tone. Use it to calibrate, and to translate a reference like "make it feel like Mario Kart" into concrete decisions.
+Racing games split into a handful of subgenres with genuinely different UI conventions, built from surveying the interfaces of sim, arcade, kart, mobile, and time-trial racers across the genre's history — from the Ridge Racer and Mario Kart era through current titles like Gran Turismo 7, Forza Horizon, F1 25, Need for Speed Unbound, Mario Kart World, and Sonic Racing. This file is organized by _pattern_, not by a ranked list — rank doesn't tell you anything useful about what to build, but knowing which subgenre a project belongs to tells you almost everything about HUD density, menu depth, and tone. Use it to calibrate, and to translate a reference like "make it feel like Mario Kart" into concrete decisions.
 
 ## Contents
+
 - Quick-reference table
 - Simulation
 - Open-world arcade
@@ -16,16 +17,16 @@ Racing games split into a handful of subgenres with genuinely different UI conve
 
 ## Quick-reference table
 
-| Subgenre | HUD density | Menu depth | Representative titles | Core UI trait |
-|---|---|---|---|---|
-| Simulation | High | Deep (setup/tuning) | Gran Turismo 7, Forza Motorsport, F1 25, iRacing, Assetto Corsa Competizione, Le Mans Ultimate | Telemetry, diegetic cockpit view, precision tuning |
-| Open-world arcade | Medium | Deep (map/collection) | Forza Horizon 5/6, Need for Speed Unbound/Heat, The Crew Motorfest, Test Drive Unlimited Solar Crown | Navigation minimap doubles as world map |
-| Arcade checkpoint & combat | Low–Medium | Shallow | Burnout Paradise, Wreckfest, Hot Wheels Unleashed, Ridge Racer | Big, punchy, damage/takedown-forward |
-| Kart racing | Low | Shallow–Medium | Mario Kart 8 Deluxe / World, Crash Team Racing Nitro-Fueled, Sonic Racing CrossWorlds | Item-forward, rubber-banding, chaos-tolerant |
-| Time trial / precision | Very low | Shallow | Trackmania, F-Zero GX, Distance | Delta-to-ghost is the entire HUD |
-| Mobile touch (arcade) | Low, auto-assisted | Medium (collection/gacha) | Asphalt 9: Legends, Real Racing 3, CarX Street, Racing Master | Simplified-vs-manual control toggle |
-| Drag racing | Very low, linear | Medium (garage-heavy) | CSR Racing 2, Nitro Nation | Reaction-time + shift-timing HUD, no steering |
-| Rally & off-road | Medium–High | Medium | Dirt Rally / WRC series, Dakar Desert Rally | Co-driver pace-note callouts as HUD element |
+| Subgenre                   | HUD density        | Menu depth                | Representative titles                                                                                | Core UI trait                                      |
+| -------------------------- | ------------------ | ------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Simulation                 | High               | Deep (setup/tuning)       | Gran Turismo 7, Forza Motorsport, F1 25, iRacing, Assetto Corsa Competizione, Le Mans Ultimate       | Telemetry, diegetic cockpit view, precision tuning |
+| Open-world arcade          | Medium             | Deep (map/collection)     | Forza Horizon 5/6, Need for Speed Unbound/Heat, The Crew Motorfest, Test Drive Unlimited Solar Crown | Navigation minimap doubles as world map            |
+| Arcade checkpoint & combat | Low–Medium         | Shallow                   | Burnout Paradise, Wreckfest, Hot Wheels Unleashed, Ridge Racer                                       | Big, punchy, damage/takedown-forward               |
+| Kart racing                | Low                | Shallow–Medium            | Mario Kart 8 Deluxe / World, Crash Team Racing Nitro-Fueled, Sonic Racing CrossWorlds                | Item-forward, rubber-banding, chaos-tolerant       |
+| Time trial / precision     | Very low           | Shallow                   | Trackmania, F-Zero GX, Distance                                                                      | Delta-to-ghost is the entire HUD                   |
+| Mobile touch (arcade)      | Low, auto-assisted | Medium (collection/gacha) | Asphalt 9: Legends, Real Racing 3, CarX Street, Racing Master                                        | Simplified-vs-manual control toggle                |
+| Drag racing                | Very low, linear   | Medium (garage-heavy)     | CSR Racing 2, Nitro Nation                                                                           | Reaction-time + shift-timing HUD, no steering      |
+| Rally & off-road           | Medium–High        | Medium                    | Dirt Rally / WRC series, Dakar Desert Rally                                                          | Co-driver pace-note callouts as HUD element        |
 
 ## Simulation
 
@@ -73,8 +74,8 @@ Racing games split into a handful of subgenres with genuinely different UI conve
 
 **Fantasy:** pure improvement against a clock, often solo, often about muscle memory and margins of a tenth of a second.
 
-- The HUD can be nearly nothing: a timer, a delta-to-ghost or personal-best, sometimes a minimal speed readout. This is the one subgenre where "less" isn't a compromise — an empty HUD is often the *correct*, most-requested state, and top titles in this space let players toggle almost every element off individually.
-- Ghost cars (a translucent replay of a reference run) are a core mechanic and a core piece of "HUD" in the broadest sense — they need to read clearly as *not* a real opponent (distinct material/opacity) while still being spatially precise enough to race against.
+- The HUD can be nearly nothing: a timer, a delta-to-ghost or personal-best, sometimes a minimal speed readout. This is the one subgenre where "less" isn't a compromise — an empty HUD is often the _correct_, most-requested state, and top titles in this space let players toggle almost every element off individually.
+- Ghost cars (a translucent replay of a reference run) are a core mechanic and a core piece of "HUD" in the broadest sense — they need to read clearly as _not_ a real opponent (distinct material/opacity) while still being spatially precise enough to race against.
 - Medal/tier systems (bronze/silver/gold/author-time style tiers) are a common lightweight progression layer that replaces a traditional career menu.
 - Live ranking or spectator feeds, when the game supports viewing others' runs, benefit from real-time notifications ("Player X just beat your time") rather than requiring a manual refresh/check.
 - **Borrow:** a HUD element visibility picker, letting each player configure exactly what's on screen. This genre's audience is the most likely to actually use per-element toggles rather than just an overall density preset.
@@ -84,7 +85,7 @@ Racing games split into a handful of subgenres with genuinely different UI conve
 
 **Fantasy:** quick sessions, collection, accessible spectacle on a small screen with imprecise input.
 
-- **The defining pattern is a simplified-vs-manual control toggle:** an assisted mode where the car steers and accelerates mostly on its own and the player's input is reduced to swipe-to-change-lane, tap-to-drift, and tap-to-boost, alongside a traditional manual/tilt/tap-to-steer option for players who want full control. This isn't a lesser mode bolted on for casuals — treat it as a legitimate first-class control scheme, since it's frequently the *default and most-used* option in shipped mobile racers.
+- **The defining pattern is a simplified-vs-manual control toggle:** an assisted mode where the car steers and accelerates mostly on its own and the player's input is reduced to swipe-to-change-lane, tap-to-drift, and tap-to-boost, alongside a traditional manual/tilt/tap-to-steer option for players who want full control. This isn't a lesser mode bolted on for casuals — treat it as a legitimate first-class control scheme, since it's frequently the _default and most-used_ option in shipped mobile racers.
 - Touch targets for drift/boost/lane-change need to sit where thumbs naturally rest in landscape play, sized well above minimum-tap-target guidelines, and never overlap the sightline to the road.
 - HUD stays minimal — screen space is scarce and precious on a phone. Speed, position, and the current boost/drift state cover most needs; resist porting a console-density HUD onto a 6-inch screen.
 - Garage/collection screens tend to be a major part of the game (often with gacha- or blueprint-style unlock systems) — budget real design attention here, not just on the HUD.
@@ -112,4 +113,4 @@ Racing games split into a handful of subgenres with genuinely different UI conve
 
 ## Borrowing across genres without breaking the fantasy
 
-It's common and often good practice to borrow a specific technique across subgenres — a sim's delta-to-ghost readout works great in an arcade game; a kart racer's visible-item-anticipation idea could inform a sim's tire-strategy display. What breaks the fantasy is borrowing *density* or *tone* wholesale: a kart racer with sim-level telemetry stops feeling like a kart racer, and a sim with a kart racer's minimal HUD reads as unfinished rather than elegant to its audience. When in doubt, borrow the specific technique and re-calibrate its density to the target genre's row in the table above.
+It's common and often good practice to borrow a specific technique across subgenres — a sim's delta-to-ghost readout works great in an arcade game; a kart racer's visible-item-anticipation idea could inform a sim's tire-strategy display. What breaks the fantasy is borrowing _density_ or _tone_ wholesale: a kart racer with sim-level telemetry stops feeling like a kart racer, and a sim with a kart racer's minimal HUD reads as unfinished rather than elegant to its audience. When in doubt, borrow the specific technique and re-calibrate its density to the target genre's row in the table above.

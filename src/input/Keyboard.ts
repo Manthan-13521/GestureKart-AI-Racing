@@ -38,10 +38,16 @@ export class KeyboardHandler {
   }
 
   private handleKey(key: string, pressed: boolean): boolean {
-    const k = key === 'w' || key === 'arrowup' ? 'up' :
-             key === 's' || key === 'arrowdown' ? 'down' :
-             key === 'a' || key === 'arrowleft' ? 'left' :
-             key === 'd' || key === 'arrowright' ? 'right' : null;
+    const k =
+      key === 'w' || key === 'arrowup'
+        ? 'up'
+        : key === 's' || key === 'arrowdown'
+          ? 'down'
+          : key === 'a' || key === 'arrowleft'
+            ? 'left'
+            : key === 'd' || key === 'arrowright'
+              ? 'right'
+              : null;
 
     if (k && this.keys[k] !== pressed) {
       this.keys[k] = pressed;

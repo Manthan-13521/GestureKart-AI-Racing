@@ -11,15 +11,15 @@ Approach this the way a UX lead at a game studio would: the interface isn't deco
 
 Before placing a single button, decide three things: what the player needs to know right now, what they need to know soon, and what they never need to see on this screen. Most weak game UIs come from skipping this and displaying everything the system tracks, all the time, "just in case."
 
-- **Hierarchy first.** The most urgent, most frequently needed information (health, ammo, the currently selected tool) gets the biggest, highest-contrast, most central treatment. *Breath of the Wild*'s map highlights only what matters for the player's current goal instead of every point of interest at once — that's hierarchy doing its job.
+- **Hierarchy first.** The most urgent, most frequently needed information (health, ammo, the currently selected tool) gets the biggest, highest-contrast, most central treatment. _Breath of the Wild_'s map highlights only what matters for the player's current goal instead of every point of interest at once — that's hierarchy doing its job.
 - **Respect cognitive load.** Every extra number, icon, or bar on screen is something the player has to parse mid-action. If a value won't change a decision in the next few seconds, it probably belongs in a menu, not the HUD.
 - **Make it conditional.** The strongest HUDs appear only when relevant and fade out otherwise — a health bar that only shows up in combat keeps the frame clean without losing the information when it counts.
 
 ## Choose where each element lives
 
-A reliable way to decide how to present any given piece of information is to ask two questions: does it exist in the game's fiction, and does it occupy physical space in the world? The combination gives four categories — a framework that originates from Fagerholt and Lorentzon's *Beyond the HUD* research and is now standard vocabulary in the field:
+A reliable way to decide how to present any given piece of information is to ask two questions: does it exist in the game's fiction, and does it occupy physical space in the world? The combination gives four categories — a framework that originates from Fagerholt and Lorentzon's _Beyond the HUD_ research and is now standard vocabulary in the field:
 
-- **Diegetic** — exists in the world and the character can perceive it (ammo counts printed on a gun model, Isaac's spine-mounted health meter in *Dead Space*). Maximizes immersion, costs flexibility.
+- **Diegetic** — exists in the world and the character can perceive it (ammo counts printed on a gun model, Isaac's spine-mounted health meter in _Dead Space_). Maximizes immersion, costs flexibility.
 - **Non-diegetic** — a screen overlay the character can't see, only the player can (health bars, minimaps, pause menus). Maximizes clarity and is cheapest to iterate on.
 - **Spatial** — rendered in world space but invisible to the character, like a waypoint arrow or an enemy nameplate. Directs attention without cluttering the screen edges.
 - **Meta** — represents character state through an effect the player perceives with no literal in-world object, like screen edges reddening at low health. Reinforces feeling without adding a widget.
@@ -28,7 +28,7 @@ Well-regarded UIs usually mix all four deliberately instead of committing to one
 
 ## Make it feel good: game feel and juice
 
-Even a mechanically sound interface can feel dead if actions don't register. Steve Swink's concept of "game feel" splits this into three pillars: real-time control (how responsive input is), simulated space (how the world reacts to and communicates with the player), and polish (the audiovisual layer over both). Apply all three to UI too — buttons should respond within a frame or two, focused elements should visibly react, and confirmed actions need unmistakable feedback. A well-executed parry in *Dark Souls* reads as successful through animation, sound, and a beat of hit-stop together, not through a number quietly changing in a corner.
+Even a mechanically sound interface can feel dead if actions don't register. Steve Swink's concept of "game feel" splits this into three pillars: real-time control (how responsive input is), simulated space (how the world reacts to and communicates with the player), and polish (the audiovisual layer over both). Apply all three to UI too — buttons should respond within a frame or two, focused elements should visibly react, and confirmed actions need unmistakable feedback. A well-executed parry in _Dark Souls_ reads as successful through animation, sound, and a beat of hit-stop together, not through a number quietly changing in a corner.
 
 "Juice" is the deliberate amplification of that feedback — more sensory response than is mechanically necessary, because it makes the moment feel significant. Techniques worth having in the toolkit:
 
@@ -61,7 +61,7 @@ Roughly a third of players have some disability that affects how they interact w
 - Distinguish subtitles (dialogue only) from captions (all meaningful sound, including effects and music cues), and support full captioning, with a direction indicator for important off-screen sound where relevant.
 - Let text size, contrast, and subtitle background opacity be adjusted independently of other settings.
 - Provide a reduced-motion / reduced-flash toggle that kills screen shake, camera kick, and strobing — this also protects photosensitive and vestibular-sensitive players.
-- Avoid making tight timing the *only* path to success; offer a way to slow down, retry, or bypass it.
+- Avoid making tight timing the _only_ path to success; offer a way to slow down, retry, or bypass it.
 
 ## Numbers worth using directly
 
@@ -106,4 +106,4 @@ Can the player tell what's most important at a glance? Does everything clickable
 
 ## Where this comes from
 
-This draws on some of the field's most cited references, worth going straight to for more depth: Steve Swink's *Game Feel*; Martin Jonasson and Petri Purho's GDC talk *Juice it or Lose it*, and Jan Willem Nijman's *The Art of Screenshake*; Fagerholt and Lorentzon's *Beyond the HUD* thesis (the source of the diegetic/non-diegetic/spatial/meta framework); Disney's twelve principles of animation (Thomas & Johnston); gameaccessibilityguidelines.com and Microsoft's Xbox Accessibility Guidelines; and WCAG 2.1, Apple's Human Interface Guidelines, and Google's Material Design for the concrete numbers above.
+This draws on some of the field's most cited references, worth going straight to for more depth: Steve Swink's _Game Feel_; Martin Jonasson and Petri Purho's GDC talk _Juice it or Lose it_, and Jan Willem Nijman's _The Art of Screenshake_; Fagerholt and Lorentzon's _Beyond the HUD_ thesis (the source of the diegetic/non-diegetic/spatial/meta framework); Disney's twelve principles of animation (Thomas & Johnston); gameaccessibilityguidelines.com and Microsoft's Xbox Accessibility Guidelines; and WCAG 2.1, Apple's Human Interface Guidelines, and Google's Material Design for the concrete numbers above.

@@ -19,13 +19,11 @@ const inputManager = new InputManager(bus);
 const ui = new UIManager();
 
 // ─── DOM refs ───────────────────────────────────────────────────────
-const landing = document.getElementById('landing')!;
 const landingPlay = document.getElementById('landing-play')!;
 const landingSettings = document.getElementById('landing-settings')!;
 const landingLearn = document.getElementById('landing-learn')!;
 const navTitle = document.querySelector('.nav-title') as HTMLElement;
 const video = document.getElementById('webcam') as HTMLVideoElement;
-const gameCanvas = document.getElementById('game') as HTMLCanvasElement;
 const camOverlay = document.getElementById('cam-overlay') as HTMLCanvasElement;
 const gameOverlayCanvas = document.getElementById('game-overlay-canvas') as HTMLCanvasElement;
 const handSkeletonCanvas = document.getElementById('hand-skeleton-canvas') as HTMLCanvasElement;
@@ -134,7 +132,10 @@ function drawCamOverlay(data: HandData): void {
     const lm = data.landmarks[hi];
 
     if (lm.length > 0) {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
       for (const p of lm) {
         const px = p.x * w;
         const py = p.y * h;
@@ -241,10 +242,13 @@ function updateSteeringUI(centerX: number, handsDetected: number): void {
 
   steerSub.textContent =
     handsDetected >= 2
-      ? dir === 'LEFT' ? 'Steering left'
-        : dir === 'RIGHT' ? 'Steering right'
+      ? dir === 'LEFT'
+        ? 'Steering left'
+        : dir === 'RIGHT'
+          ? 'Steering right'
           : 'Keep hands steady'
-      : handsDetected === 1 ? 'Show both hands'
+      : handsDetected === 1
+        ? 'Show both hands'
         : 'No hands detected';
 
   const angle = (centerX - 0.5) * 80;
@@ -271,7 +275,7 @@ function updateTelemetry(data: HandData): void {
     data.landmarks.length >= 2
       ? Math.sqrt(
           (data.landmarks[0][0].x - data.landmarks[1][0].x) ** 2 +
-            (data.landmarks[0][0].y - data.landmarks[1][0].y) ** 2,
+            (data.landmarks[0][0].y - data.landmarks[1][0].y) ** 2
         ) * 800
       : 0;
   telemHandDist.textContent = dist > 0 ? `${Math.floor(dist)}` : '--';
@@ -537,7 +541,12 @@ function gameLoop(): void {
       }
     }
     // Gyroscope layer
-    else if (inputManager.gyroscopeMode && !inputManager.touch.active && !inputManager.keys.left && !inputManager.keys.right) {
+    else if (
+      inputManager.gyroscopeMode &&
+      !inputManager.touch.active &&
+      !inputManager.keys.left &&
+      !inputManager.keys.right
+    ) {
       const gyroCenterX = 0.5 + inputManager.gyroTilt * 0.4;
       const gyroHands = inputManager.keys.up ? 2 : 0;
       game.setHandData(gyroCenterX, gyroHands);
@@ -652,7 +661,7 @@ function drawSpeedLines(speed: number, steerX: number): void {
   ctx.strokeStyle = `rgba(120, 160, 200, ${intensity * 0.3})`;
   ctx.lineWidth = 1;
   for (let i = 0; i < numLines; i++) {
-    const seed = (i * 7919 + 31) % 1000 / 1000;
+    const seed = ((i * 7919 + 31) % 1000) / 1000;
     const angle = seed * Math.PI * 2 + steerOffset;
     const r = 0.2 + seed * 0.3;
     const startR = r * Math.min(w, h) * 0.5;
@@ -714,7 +723,12 @@ async function init(): Promise<void> {
   touchModeLabel.textContent = inputManager.gyroscopeMode ? 'GYRO' : 'TOUCH';
 
   // Init audio on first interaction
-  const initAudioOnce = () => { audioManager.init(); window.removeEventListener('click', initAudioOnce); window.removeEventListener('keydown', initAudioOnce); window.removeEventListener('touchstart', initAudioOnce); };
+  const initAudioOnce = () => {
+    audioManager.init();
+    window.removeEventListener('click', initAudioOnce);
+    window.removeEventListener('keydown', initAudioOnce);
+    window.removeEventListener('touchstart', initAudioOnce);
+  };
   window.addEventListener('click', initAudioOnce, { once: true });
   window.addEventListener('keydown', initAudioOnce, { once: true });
   window.addEventListener('touchstart', initAudioOnce, { once: true });
@@ -795,7 +809,9 @@ async function init(): Promise<void> {
   navTitle.style.cursor = 'pointer';
 
   if (!resources.externalHandsReady() || !resources.externalCameraUtilsReady()) {
-    throw new Error('MediaPipe scripts failed to load — camera hand tracking unavailable. Keyboard and touch still work.');
+    throw new Error(
+      'MediaPipe scripts failed to load — camera hand tracking unavailable. Keyboard and touch still work.'
+    );
   }
 
   tracker = new HandTracker(video, onHandData);
@@ -824,13 +840,16 @@ async function init(): Promise<void> {
 
 init().catch((err: unknown) => {
   const msg = err instanceof Error ? err.stack || err.message : String(err);
-  const el = document.getElementById('error-display') || (() => {
-    const d = document.createElement('div');
-    d.id = 'error-display';
-    d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
-    document.body.prepend(d);
-    return d;
-  })();
+  const el =
+    document.getElementById('error-display') ||
+    (() => {
+      const d = document.createElement('div');
+      d.id = 'error-display';
+      d.style.cssText =
+        'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e10600;color:#fff;padding:16px 24px;font-family:monospace;font-size:14px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid #ff4444';
+      document.body.prepend(d);
+      return d;
+    })();
   el.textContent = 'ERROR: ' + msg;
   el.style.display = 'block';
 });

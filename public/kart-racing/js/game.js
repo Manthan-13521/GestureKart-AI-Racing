@@ -20,7 +20,10 @@ let player = {};
 
 function startRace() {
   // Clear any pending finish timeout from previous race
-  if (raceFinishTimeout) { clearTimeout(raceFinishTimeout); raceFinishTimeout = null; }
+  if (raceFinishTimeout) {
+    clearTimeout(raceFinishTimeout);
+    raceFinishTimeout = null;
+  }
   raceCanvas = document.getElementById('race-canvas');
   raceCtx = raceCanvas.getContext('2d');
   resizeRaceCanvas();
@@ -74,15 +77,15 @@ function startRace() {
   raceCars.push(player);
 
   // AI cars
-  const aiCarIndices = [1, 2, 3, 4].filter(i => i !== selectedCarIndex);
+  const aiCarIndices = [1, 2, 3, 4].filter((i) => i !== selectedCarIndex);
   for (let i = 0; i < 3; i++) {
     const ci = aiCarIndices[i % aiCarIndices.length];
     const carData = ALL_CARS[ci];
     const ai = createAICar(ci, carData);
     // Position AI on grid behind and to the side
     const offset = (i + 1) * 20;
-    ai.x = startPt.x + perpX * ((i % 2 === 0 ? 1 : -1) * (30 + Math.floor(i/2) * 30));
-    ai.y = startPt.y + perpY * ((i % 2 === 0 ? 1 : -1) * (30 + Math.floor(i/2) * 30)) - offset;
+    ai.x = startPt.x + perpX * ((i % 2 === 0 ? 1 : -1) * (30 + Math.floor(i / 2) * 30));
+    ai.y = startPt.y + perpY * ((i % 2 === 0 ? 1 : -1) * (30 + Math.floor(i / 2) * 30)) - offset;
     ai.angle = startAngle;
     ai.speed = 0;
     ai.isPlayer = false;
@@ -236,7 +239,10 @@ function updatePlayer(dt, trackPts) {
 
   // Keyboard input
   const keys = window.keysDown || {};
-  let accel = false, brake = false, left = false, right = false;
+  let accel = false,
+    brake = false,
+    left = false,
+    right = false;
 
   if (keys['ArrowUp'] || keys['w'] || keys['W']) accel = true;
   if (keys['ArrowDown'] || keys['s'] || keys['S']) brake = true;
@@ -278,7 +284,7 @@ function updatePlayer(dt, trackPts) {
     const idx = (player.progress + i + trackPts.length) % trackPts.length;
     const px = trackPts[idx].x - player.x;
     const py = trackPts[idx].y - player.y;
-    const dist = px*px + py*py;
+    const dist = px * px + py * py;
     if (dist < minDist) {
       minDist = dist;
       closestIdx = idx;
@@ -292,7 +298,7 @@ function updatePlayer(dt, trackPts) {
 
   // Checkpoint detection
   for (const cp of checkpoints) {
-    const cpIdx = Math.round(cp.index / cp.total * trackPts.length);
+    const cpIdx = Math.round((cp.index / cp.total) * trackPts.length);
     if (Math.abs(closestIdx - cpIdx) < 5 && player.progress > cpIdx) {
       if (!player.checkpointHits[cp.index]) {
         player.checkpointHits[cp.index] = true;
@@ -328,12 +334,16 @@ function updatePlayer(dt, trackPts) {
       if (Math.abs(player.x - zone.x) < zone.w && Math.abs(player.y - zone.y) < zone.h) {
         // Check if player car is Camo Tank (high durability)
         let effectMult = 1.0;
-        if (player.carData && player.carData.id === 'camo-tank' && (zone.type === 'hazard' || zone.type === 'spin')) {
+        if (
+          player.carData &&
+          player.carData.id === 'camo-tank' &&
+          (zone.type === 'hazard' || zone.type === 'spin')
+        ) {
           effectMult = 0.3;
         }
 
         if (zone.type === 'hazard') {
-          player.speed *= (1 - zone.strength * 0.25 * effectMult);
+          player.speed *= 1 - zone.strength * 0.25 * effectMult;
           player.zoneCooldown = 1.5;
         } else if (zone.type === 'boost') {
           player.speed = Math.min(player.maxSpeed * 1.4, player.speed + zone.strength * effectMult * 1.2);
@@ -365,7 +375,7 @@ function updatePlayer(dt, trackPts) {
   const closestPt = trackPts[closestIdx];
   const offX = player.x - closestPt.x;
   const offY = player.y - closestPt.y;
-  const offDist = Math.sqrt(offX*offX + offY*offY);
+  const offDist = Math.sqrt(offX * offX + offY * offY);
   if (offDist > 60) {
     const pull = 0.025;
     player.x -= offX * pull;
@@ -445,7 +455,7 @@ function renderRace(track) {
       ctx.rotate(car.angle);
       ctx.fillStyle = car.isPlayer ? '#00ff41' : '#ff4444';
       ctx.beginPath();
-      ctx.ellipse(0, 0, carW/2, carH/2, 0, 0, Math.PI*2);
+      ctx.ellipse(0, 0, carW / 2, carH / 2, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -534,9 +544,9 @@ function renderRoad(ctx, pts, track, camX, camY, zoom) {
   const startPt2 = pts[1];
   const sdx = startPt2.x - startPt.x;
   const sdy = startPt2.y - startPt.y;
-  const slen = Math.sqrt(sdx*sdx + sdy*sdy) || 1;
-  const spx = -sdy / slen * roadWidth * zoom;
-  const spy = sdx / slen * roadWidth * zoom;
+  const slen = Math.sqrt(sdx * sdx + sdy * sdy) || 1;
+  const spx = (-sdy / slen) * roadWidth * zoom;
+  const spy = (sdx / slen) * roadWidth * zoom;
 
   const ssx = (startPt.x - camX) * zoom + w / 2;
   const ssy = (startPt.y - camY) * zoom + h / 2;
@@ -610,7 +620,13 @@ function quitRace() {
   raceState = 'idle';
   document.getElementById('race-paused').classList.remove('active');
   document.getElementById('race-finish').classList.remove('active');
-  if (raceAnimFrame) { cancelAnimationFrame(raceAnimFrame); raceAnimFrame = null; }
-  if (raceFinishTimeout) { clearTimeout(raceFinishTimeout); raceFinishTimeout = null; }
+  if (raceAnimFrame) {
+    cancelAnimationFrame(raceAnimFrame);
+    raceAnimFrame = null;
+  }
+  if (raceFinishTimeout) {
+    clearTimeout(raceFinishTimeout);
+    raceFinishTimeout = null;
+  }
   showScreen('menu');
 }

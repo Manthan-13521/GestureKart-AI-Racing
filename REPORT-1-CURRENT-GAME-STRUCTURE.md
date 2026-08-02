@@ -15,23 +15,25 @@
 
 ## 2. Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Language | TypeScript 5 (strict mode), ES2020 target |
-| 3D Engine | Three.js r170 (`three` npm package) |
-| Hand Tracking | MediaPipe Hands + Camera Utils (CDN scripts in `index.html`) |
-| Build Tool | Vite 6 (`vite.config.ts`, dev port 3000) |
-| Styling | Single CSS file `src/style.css` (1346 lines, custom design system with CSS variables) |
-| Audio | Web Audio API (no assets — synthesized engine + collision sounds) |
-| Backend | None — pure static frontend, deployed on Vercel |
+| Layer         | Technology                                                                            |
+| ------------- | ------------------------------------------------------------------------------------- |
+| Language      | TypeScript 5 (strict mode), ES2020 target                                             |
+| 3D Engine     | Three.js r170 (`three` npm package)                                                   |
+| Hand Tracking | MediaPipe Hands + Camera Utils (CDN scripts in `index.html`)                          |
+| Build Tool    | Vite 6 (`vite.config.ts`, dev port 3000)                                              |
+| Styling       | Single CSS file `src/style.css` (1346 lines, custom design system with CSS variables) |
+| Audio         | Web Audio API (no assets — synthesized engine + collision sounds)                     |
+| Backend       | None — pure static frontend, deployed on Vercel                                       |
 
 ### Dependencies (`package.json`)
+
 ```json
 dependencies:   three ^0.170.0
 devDependencies: @types/three, typescript, vite
 ```
 
 ### Available Scripts
+
 ```bash
 npm run dev       # vite dev server (port 3000, auto-opens)
 npm run build     # tsc type-check + vite production build → dist/
@@ -69,13 +71,16 @@ Virtual-Steering/
 ## 4. How the Game Runs — Architecture Walkthrough
 
 ### 4.1 Startup (`src/main.ts`)
+
 1. `init()` creates a single `Game` instance bound to the `<canvas id="game">`.
 2. It wires up: `KeyboardHandler`, sensitivity slider, touch controls, gyroscope init, and audio-on-first-interaction.
 3. Creates a `HandTracker` bound to the `<video id="webcam">` and `await tracker.start()` — **camera permission is requested immediately on load**.
 4. Starts the infinite `gameLoop()` via `requestAnimationFrame`.
 
 ### 4.2 The Game Loop (main.ts:482)
+
 Each frame:
+
 1. Update FPS counter.
 2. Apply input layers in priority order: **Touch → Gyroscope → Keyboard → Hand tracking (base)**.
 3. Call `game.update()` → `game.render()` (Three.js).
@@ -83,6 +88,7 @@ Each frame:
 5. Draw juice: speed lines, vignette, collision flash, engine sound.
 
 ### 4.3 The 3D World (`src/game/Game.ts`)
+
 - **Tunnel:** 18 procedurally-built segments (`buildSeg`, `buildSegments`) that loop infinitely by shifting `z` — neon strips, ceiling lights, lane dashes, barriers. Constant forward motion illusion.
 - **Road:** 3 lanes at `LANE_X = [-3.3, 0, 3.3]`, road width 10.
 - **Cockpit:** first-person hood, dashboard, steering wheel, mirrors (drawn on a tiny canvas), attached to the camera.
@@ -91,6 +97,7 @@ Each frame:
 - **Particles:** speed dust streaks.
 
 ### 4.4 Data Flow (steering)
+
 ```
 Webcam → MediaPipe Hands → palm-center (avg of wrist + index MCP + middle MCP)
         → EMA smoothing (HandTracker.smoothedX)
@@ -100,6 +107,7 @@ Webcam → MediaPipe Hands → palm-center (avg of wrist + index MCP + middle MC
 ```
 
 ### 4.5 Game State & Rules (Game.ts)
+
 - **`start()`** resets score/speed/timer, clears obstacles, spawns 3 initial cars.
 - **Acceleration:** only if `handsDetected >= 2` (or auto-accelerate / keyboard). Speed ramps to `maxSpeed = 2.0 + difficulty*2.5`.
 - **Scoring:** `score += speed * 2 * dt` while accelerating.
@@ -110,6 +118,7 @@ Webcam → MediaPipe Hands → palm-center (avg of wrist + index MCP + middle MC
 - **Difficulty:** ramps over time — faster max speed and faster obstacle spawn interval.
 
 ### 4.6 HUD Elements (index.html + main.ts updateGameHUD)
+
 Position (e.g. `2/6`), Lap (`1/2`), Race timer (top-center ring), Score, Speed (digital + analog arc gauge), Gear, track name.
 
 ---
@@ -139,12 +148,12 @@ Key wiring in `main.ts`: `landingPlay`, `menuStart`, `resultsRetry`, `resultsMen
 
 ## 6. Input Systems
 
-| Input | How it works | State location |
-|---|---|---|
-| **Hands** | 2 hands detected ⇒ accelerate; average palm-center X ⇒ steer (mirrored); 1 hand ⇒ steer only | `HandTracker.onResults` → `onHandData` |
-| **Keyboard** | W/↑ gas, A/← left, D/→ right, U auto-accel | `KeyboardHandler` → `onKeys` |
-| **Touch** | On-screen LEFT/RIGHT/GAS/AUTO buttons | `setupTouchControls` |
-| **Gyroscope** | Double-tap mode label ⇒ gyro steering on mobile | `deviceOrientationInit` |
+| Input         | How it works                                                                                 | State location                         |
+| ------------- | -------------------------------------------------------------------------------------------- | -------------------------------------- |
+| **Hands**     | 2 hands detected ⇒ accelerate; average palm-center X ⇒ steer (mirrored); 1 hand ⇒ steer only | `HandTracker.onResults` → `onHandData` |
+| **Keyboard**  | W/↑ gas, A/← left, D/→ right, U auto-accel                                                   | `KeyboardHandler` → `onKeys`           |
+| **Touch**     | On-screen LEFT/RIGHT/GAS/AUTO buttons                                                        | `setupTouchControls`                   |
+| **Gyroscope** | Double-tap mode label ⇒ gyro steering on mobile                                              | `deviceOrientationInit`                |
 
 **Input priority (main.ts:493):** touch > gyro > keyboard > hands (hands always feed steering as a base).
 
@@ -176,16 +185,17 @@ Key wiring in `main.ts`: `landingPlay`, `menuStart`, `resultsRetry`, `resultsMen
 
 ## 10. Summary — What Exists vs. What's Missing
 
-| Capability | Status |
-|---|---|
-| Single endless tunnel race, hand/kybd/touch/gyro input | ✅ Working |
-| Obstacle traffic to dodge, score, 90s timer, collisions | ✅ Working (this is the future **Obstacle Mode**) |
-| Landing page + settings + how-to + results | ✅ Working |
-| Racing **against opponents / a ghost / a second player** | ❌ Not present |
-| Mode selection (Continuous / Obstacle / Multiplayer) | ❌ Not present |
-| Any networking / online multiplayer | ❌ Not present |
-| Pause menu during race | ❌ Not present |
-| Best-score persistence (localStorage) | ❌ Not present |
+| Capability                                               | Status                                            |
+| -------------------------------------------------------- | ------------------------------------------------- |
+| Single endless tunnel race, hand/kybd/touch/gyro input   | ✅ Working                                        |
+| Obstacle traffic to dodge, score, 90s timer, collisions  | ✅ Working (this is the future **Obstacle Mode**) |
+| Landing page + settings + how-to + results               | ✅ Working                                        |
+| Racing **against opponents / a ghost / a second player** | ❌ Not present                                    |
+| Mode selection (Continuous / Obstacle / Multiplayer)     | ❌ Not present                                    |
+| Any networking / online multiplayer                      | ❌ Not present                                    |
+| Pause menu during race                                   | ❌ Not present                                    |
+| Best-score persistence (localStorage)                    | ❌ Not present                                    |
 
 ---
-*Prepared from a full scan of `src/`, `index.html`, `public/kart-racing/`, configs, and git history.*
+
+_Prepared from a full scan of `src/`, `index.html`, `public/kart-racing/`, configs, and git history._

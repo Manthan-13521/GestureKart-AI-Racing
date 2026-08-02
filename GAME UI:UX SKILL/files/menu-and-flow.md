@@ -3,6 +3,7 @@
 Everything in a racing game that isn't the HUD lives here. Players spend real time in these screens — a garage or car-select screen often gets studied far more carefully than any single HUD element, so it earns more visual patience and detail than the HUD does.
 
 ## Contents
+
 - Navigation conventions (read this first — it applies to every screen below)
 - Title and main menu
 - Garage and car select
@@ -33,7 +34,7 @@ The title screen is the first brand impression and should get out of the way qui
 
 This is a showcase screen as much as a functional one — players in this genre frequently spend more time here, per session, than in any single HUD interaction, so it's worth real visual craft.
 
-- **Let the player see the car properly.** A 3D turntable or a large, well-lit hero shot beats a thumbnail grid for the *currently selected* car; a denser grid is fine for browsing/comparing the rest of the collection.
+- **Let the player see the car properly.** A 3D turntable or a large, well-lit hero shot beats a thumbnail grid for the _currently selected_ car; a denser grid is fine for browsing/comparing the rest of the collection.
 - **Surface the stats that actually differentiate cars** — top speed, acceleration, handling, weight class, whatever the game's physics model actually varies — as a compact visual comparison (bars, a radar/spider chart, or a simple numeric table), not a wall of numbers. The player is trying to answer "is this car right for this race," not audit a spec sheet.
 - **Blanked-out or silhouetted slots for uncollected cars** create anticipation and make progression legible at a glance — the player can see the shape of what's left to unlock without it being spoiled or, conversely, without pretending the collection is smaller than it is.
 - **Class/tier grouping** (by speed class, price, or category) helps once the collection is larger than a dozen or so cars; a flat list stops scaling quickly.
@@ -43,9 +44,9 @@ This is a showcase screen as much as a functional one — players in this genre 
 
 Split by what's being changed, since they're different mental modes for the player:
 
-- **Visual customization (livery, paint, decals, body kits, vanity items):** self-expression, browsed leisurely, benefits from a large real-time preview since the payoff *is* the look.
+- **Visual customization (livery, paint, decals, body kits, vanity items):** self-expression, browsed leisurely, benefits from a large real-time preview since the payoff _is_ the look.
 - **Performance upgrades (engine, drivetrain, aero, tires):** a build/optimization puzzle. Show the stat delta of every choice immediately and concretely (+12 top speed, not a vague "better"), and if upgrades cost currency, show affordability state at a glance rather than making the player discover a purchase failure after selecting.
-- **Fine tuning (gear ratios, suspension, ride height, differential):** sim-only territory almost always. Its audience wants precision — sliders with visible numeric values and sensible min/max ranges, not abstracted "low/medium/high" presets, though offering presets *alongside* the sliders is a reasonable on-ramp for less experienced players.
+- **Fine tuning (gear ratios, suspension, ride height, differential):** sim-only territory almost always. Its audience wants precision — sliders with visible numeric values and sensible min/max ranges, not abstracted "low/medium/high" presets, though offering presets _alongside_ the sliders is a reasonable on-ramp for less experienced players.
 
 ## Track and event select
 
@@ -53,7 +54,7 @@ Show enough about a track or event before commitment that the player is making a
 
 ## Pre-race, lobby, and matchmaking
 
-For multiplayer or grid-based starts: show who else is racing (name, car, sometimes a skill/rank indicator), confirm the track and rules are what the player expects, and give a clear ready-up state so nobody is confused about why the race hasn't started. Matchmaking screens should communicate that *something is happening* (estimated wait, a visible search state) rather than a static screen the player can't tell is working.
+For multiplayer or grid-based starts: show who else is racing (name, car, sometimes a skill/rank indicator), confirm the track and rules are what the player expects, and give a clear ready-up state so nobody is confused about why the race hasn't started. Matchmaking screens should communicate that _something is happening_ (estimated wait, a visible search state) rather than a static screen the player can't tell is working.
 
 ## Loading screens
 

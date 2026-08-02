@@ -1,8 +1,9 @@
 # Visual Language: Typography, Color, Motion
 
-Racing UI has a real, recognizable visual vocabulary — condensed technical type, dark grounds with saturated accents, purposeful motion. That vocabulary is a strong starting point, not a costume to apply identically to every project. This file gives concrete, usable defaults *and* the reasoning to deviate from them on purpose. For the broader craft of avoiding generic, templated-feeling design (palette clichés, safe layout defaults), pair this with the `frontend-design` skill if it's available — the guidance below is racing-specific on top of that general foundation.
+Racing UI has a real, recognizable visual vocabulary — condensed technical type, dark grounds with saturated accents, purposeful motion. That vocabulary is a strong starting point, not a costume to apply identically to every project. This file gives concrete, usable defaults _and_ the reasoning to deviate from them on purpose. For the broader craft of avoiding generic, templated-feeling design (palette clichés, safe layout defaults), pair this with the `frontend-design` skill if it's available — the guidance below is racing-specific on top of that general foundation.
 
 ## Contents
+
 - Typography
 - Color
 - Iconography
@@ -14,9 +15,10 @@ Racing UI has a real, recognizable visual vocabulary — condensed technical typ
 Racing HUDs and dashboards read fastest in **condensed, technical, geometric sans-serifs** — the family of typefaces that also shows up on real motorsport timing towers and dashboards. They fit more digits in less horizontal space (useful when a HUD element has a fixed corner budget) and their geometric, slightly mechanical character matches the domain without needing decoration to say "racing."
 
 **A workable three-role system:**
-- **Display/title** (logo, splash screen, event names, big celebratory moments): something with more personality and energy than the functional type — a bolder, more geometric or angular face. Use it sparingly, in the largest, least-frequent text only. Real, freely-available options with this character: *Orbitron*, *Audiowide*, *Russo One*, *Teko* (bold weight).
-- **Functional/HUD** (speed, position, lap time, gear, anything read in a fraction of a second): a condensed, highly legible technical sans, used at multiple weights for hierarchy. Real, freely-available options: *Barlow Condensed*, *Saira Condensed*, *Rajdhani*, *Exo 2*, *Chakra Petch*. These read cleanly at small sizes and hold up under motion in a way that decorative faces don't.
-- **Body/menu text** (settings labels, descriptions, tutorial copy, anything meant to be actually read rather than glanced at): a plain, highly readable sans that doesn't fight the eye over paragraph-length text. Real, freely-available options: *Inter*, *Titillium Web*, *Barlow* (the non-condensed sibling of the HUD face above, for a cohesive family).
+
+- **Display/title** (logo, splash screen, event names, big celebratory moments): something with more personality and energy than the functional type — a bolder, more geometric or angular face. Use it sparingly, in the largest, least-frequent text only. Real, freely-available options with this character: _Orbitron_, _Audiowide_, _Russo One_, _Teko_ (bold weight).
+- **Functional/HUD** (speed, position, lap time, gear, anything read in a fraction of a second): a condensed, highly legible technical sans, used at multiple weights for hierarchy. Real, freely-available options: _Barlow Condensed_, _Saira Condensed_, _Rajdhani_, _Exo 2_, _Chakra Petch_. These read cleanly at small sizes and hold up under motion in a way that decorative faces don't.
+- **Body/menu text** (settings labels, descriptions, tutorial copy, anything meant to be actually read rather than glanced at): a plain, highly readable sans that doesn't fight the eye over paragraph-length text. Real, freely-available options: _Inter_, _Titillium Web_, _Barlow_ (the non-condensed sibling of the HUD face above, for a cohesive family).
 
 Two roles is often enough for a small project (functional + body, skipping a distinct display face); three is a reasonable ceiling before it starts feeling inconsistent. Don't reach for a fourth typeface without a specific reason.
 
@@ -27,10 +29,11 @@ Two roles is often enough for a small project (functional + body, skipping a dis
 **Start from a dark ground with a small set of saturated accents, not a saturated ground.** Most racing HUDs — across sim, arcade, and mobile — sit on a dark or semi-transparent-dark base specifically so a small number of bright accent colors can carry real meaning without competing with each other or with the track underneath. A rule of thumb: one neutral dark base, one or two neutral lighter tones for secondary text/panels, and two to three saturated accents reserved for meaning (primary brand/selection color, a warning/danger color, a positive/boost/success color). If everything on screen is equally saturated, nothing reads as more urgent than anything else — see the "quiet by default, loud on the moment that matters" principle in the main SKILL.md.
 
 **Ground the palette in the game's specific fantasy, not in "what racing games usually look like."** Genre gives a starting mood, not a fixed formula:
+
 - Simulation: often restrained and closer to real motorsport broadcast graphics — whites, a single team/manufacturer accent, functional rather than decorative.
-- Open-world arcade / street: room for more energy and saturation, often tied to a specific setting (neon for a night-city street-racing fantasy, warm sun-bleached tones for a desert/coastal open world) — the accent choice should say something about *this* game's world, not just "racing game."
+- Open-world arcade / street: room for more energy and saturation, often tied to a specific setting (neon for a night-city street-racing fantasy, warm sun-bleached tones for a desert/coastal open world) — the accent choice should say something about _this_ game's world, not just "racing game."
 - Kart / party: bright, high-saturation, friendly — closer to a children's toy aisle than a dashboard, on purpose.
-- Time trial / precision: often the starkest and most restrained of all — a near-monochrome HUD with a single accent for the delta/ghost readout, because restraint *is* the aesthetic here.
+- Time trial / precision: often the starkest and most restrained of all — a near-monochrome HUD with a single accent for the delta/ghost readout, because restraint _is_ the aesthetic here.
 - Rally/off-road: earthier, higher-contrast against unpredictable natural backdrops (mud, snow, dust) rather than the clean asphalt-and-neon palette of street racers.
 
 **Reserve color-coding for consistent, learnable meaning**, and never let color alone carry a distinction a colorblind player would miss — pair every color-coded state with an icon, shape, or position cue too (see `accessibility.md`). Common, learnable conventions worth keeping consistent within a project: the player's own car/marker in one fixed color throughout every screen (minimap, results list, leaderboard), rivals or targets in a second consistent color, danger/damage states in warm/red tones, and boost/success states in the game's primary accent.

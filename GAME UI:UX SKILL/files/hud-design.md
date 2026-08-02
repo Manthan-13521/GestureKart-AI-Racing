@@ -3,6 +3,7 @@
 The HUD is the one screen the player looks at while doing something else entirely — steering, braking, watching for apexes. Everything here is written with that constraint first.
 
 ## Contents
+
 - The information hierarchy
 - Spatial layout: where things go and why
 - The core cluster: speed, position, lap/time
@@ -53,9 +54,10 @@ Speed and the tachometer/gear sit bottom-right (or bottom-center in a cockpit vi
 No racing game — arcade, sim, kart, or mobile — ships without some form of these two: **current speed** and **race position**. Everything else is optional. If a design brief is thin on detail, this is the one part of the HUD you can build with total confidence.
 
 **Speed.** Two dominant treatments:
-- *Analog-style:* a needle over an arc of tick marks, mimicking a real speedometer. Reads well because the *angle* of the needle communicates roughly how fast before the player even parses a number — pattern-matching beats reading digits under time pressure.
-- *Digital-style:* a large numeral, sometimes with a smaller unit label (mph/km/h). Reads precisely but requires an actual glance-and-parse; pair it with a secondary analog cue (a color-coded bar, a partial arc) if the game is fast enough that precision matters less than trend ("am I speeding up or slowing down").
-Most HUDs use both at once: a numeral for precision, a needle or bar for at-a-glance trend. Use **tabular (fixed-width) numerals** for the speed readout — proportional digits cause the number to visibly reflow and jitter as it changes, which reads as noisy at a glance. This is a one-line CSS/font-feature fix (`font-variant-numeric: tabular-nums` on the web) that most reference mockups skip.
+
+- _Analog-style:_ a needle over an arc of tick marks, mimicking a real speedometer. Reads well because the _angle_ of the needle communicates roughly how fast before the player even parses a number — pattern-matching beats reading digits under time pressure.
+- _Digital-style:_ a large numeral, sometimes with a smaller unit label (mph/km/h). Reads precisely but requires an actual glance-and-parse; pair it with a secondary analog cue (a color-coded bar, a partial arc) if the game is fast enough that precision matters less than trend ("am I speeding up or slowing down").
+  Most HUDs use both at once: a numeral for precision, a needle or bar for at-a-glance trend. Use **tabular (fixed-width) numerals** for the speed readout — proportional digits cause the number to visibly reflow and jitter as it changes, which reads as noisy at a glance. This is a one-line CSS/font-feature fix (`font-variant-numeric: tabular-nums` on the web) that most reference mockups skip.
 
 **Race position.** Almost always "current / total" (e.g., "3/8"), placed where it's readable without hunting. In a lapped race, pair it with the lap counter ("LAP 2/3") since the two numbers are read together — "what lap am I on, and what place am I in" is one mental query, not two.
 
@@ -74,8 +76,8 @@ Only include what the game's mechanics actually use — an empty nitro bar in a 
 
 Two genuinely different jobs hide under the same name, and conflating them is the most common minimap mistake:
 
-1. **Circuit racing minimap:** a simplified top-down outline of the *known, closed* track, with dots or arrows showing every car's position on it. Its job is answering "who's near me and where." Keep it simple — this is a Tier-2 element glanced at a few times a lap, not studied.
-2. **Open-world navigation minimap:** shows the surrounding *explorable* world, waypoints, points of interest, and the route to the next objective. Its job is wayfinding, not race-position awareness, and it earns a permanently larger, more detailed treatment because the player actually reads it to make navigation decisions between events.
+1. **Circuit racing minimap:** a simplified top-down outline of the _known, closed_ track, with dots or arrows showing every car's position on it. Its job is answering "who's near me and where." Keep it simple — this is a Tier-2 element glanced at a few times a lap, not studied.
+2. **Open-world navigation minimap:** shows the surrounding _explorable_ world, waypoints, points of interest, and the route to the next objective. Its job is wayfinding, not race-position awareness, and it earns a permanently larger, more detailed treatment because the player actually reads it to make navigation decisions between events.
 
 If the game is open-world with point-to-point races inside it (Forza Horizon–style), you likely need both behaviors — a lightweight circuit-position view during an active race, and a fuller navigation map the rest of the time. Don't force one minimap style to do both jobs; simplify aggressively for the in-race version.
 
@@ -102,14 +104,14 @@ Perceived speed is a bigger lever than actual velocity numbers for how "fast" a 
 - **Particle work:** speed lines, passing scenery streaks, dust/spray kicked up by the car, all scaled to velocity.
 - **Camera behavior:** subtle shake or sway tied to speed and surface, plus a camera that pulls back or lowers slightly at high speed.
 - **Audio:** engine pitch, wind noise, and passing-object doppler do a surprising amount of the perceptual work, often more than any visual effect alone.
-- **Full-screen motion blur** is the technique most people reach for first, and it's the least reliable one: it's expensive to render well, plenty of players disable it immediately given the option, and controlled research on racing games has found it doesn't reliably improve either lap times or reported enjoyment even though players can tell it's there. Treat it as a stylistic option behind a settings toggle, not a required ingredient — and never let it be the *only* speed cue, because players who turn it off (many will) shouldn't lose all sense of velocity.
+- **Full-screen motion blur** is the technique most people reach for first, and it's the least reliable one: it's expensive to render well, plenty of players disable it immediately given the option, and controlled research on racing games has found it doesn't reliably improve either lap times or reported enjoyment even though players can tell it's there. Treat it as a stylistic option behind a settings toggle, not a required ingredient — and never let it be the _only_ speed cue, because players who turn it off (many will) shouldn't lose all sense of velocity.
 
 Always make heavy screen-space effects (FOV pull, camera shake, blur, chromatic effects) toggleable or reducible — they're also a motion-sensitivity and accessibility concern, not just a taste preference. See `accessibility.md`.
 
 ## Practical implementation notes
 
 - Use **tabular/monospaced numerals** for any digit that updates in real time (speed, lap time, position) so digits don't visibly reflow.
-- Keep persistent HUD text at a size and contrast that passes at the *smallest* target screen (a phone at arm's length, a TV from a couch), not the designer's monitor — see `accessibility.md` for concrete contrast ratios.
+- Keep persistent HUD text at a size and contrast that passes at the _smallest_ target screen (a phone at arm's length, a TV from a couch), not the designer's monitor — see `accessibility.md` for concrete contrast ratios.
 - Build every HUD element as an independent, positionable, toggle-able component from the start. "Let players turn off or move the minimap" is a much smaller lift if the minimap was never hard-coded to a fixed corner in the first place.
-- Animate state *changes*, not steady states. A speed needle should move continuously (it's tracking a continuously changing value); a "boost ready" glow should trigger once on the transition into that state, not loop indefinitely and become wallpaper.
+- Animate state _changes_, not steady states. A speed needle should move continuously (it's tracking a continuously changing value); a "boost ready" glow should trigger once on the transition into that state, not loop indefinitely and become wallpaper.
 - Reserve the purest, most saturated color in the palette for the rarest, most important HUD state (boost-full, final-lap, damage-critical). If everything on the HUD is equally bright, nothing reads as urgent.

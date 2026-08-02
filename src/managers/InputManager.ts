@@ -57,14 +57,22 @@ export class InputManager {
     };
 
     const bind = (el: HTMLElement, key: 'left' | 'right' | 'up'): void => {
-      el.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        setHeld(key, el, true);
-      }, { passive: false });
-      el.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        setHeld(key, el, false);
-      }, { passive: false });
+      el.addEventListener(
+        'touchstart',
+        (e) => {
+          e.preventDefault();
+          setHeld(key, el, true);
+        },
+        { passive: false }
+      );
+      el.addEventListener(
+        'touchend',
+        (e) => {
+          e.preventDefault();
+          setHeld(key, el, false);
+        },
+        { passive: false }
+      );
       el.addEventListener('touchcancel', () => setHeld(key, el, false));
       el.addEventListener('mousedown', () => setHeld(key, el, true));
       el.addEventListener('mouseup', () => setHeld(key, el, false));
@@ -104,10 +112,16 @@ export class InputManager {
       this.gyroTilt = Math.max(-1, Math.min(1, e.gamma / 45));
     };
 
-    if (typeof DeviceOrientationEvent !== 'undefined' && typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === 'function') {
-      (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission().then((state: string) => {
-        if (state === 'granted') window.addEventListener('deviceorientation', this.orientationListener!);
-      });
+    if (
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> })
+        .requestPermission === 'function'
+    ) {
+      (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> })
+        .requestPermission()
+        .then((state: string) => {
+          if (state === 'granted') window.addEventListener('deviceorientation', this.orientationListener!);
+        });
     } else {
       window.addEventListener('deviceorientation', this.orientationListener);
     }

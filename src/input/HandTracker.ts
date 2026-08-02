@@ -1,5 +1,4 @@
-declare const Hands: any;
-declare const Camera: any;
+import type { MediaPipeHandedness, MediaPipeLandmark, MediaPipeResults } from '../types/mediapipe';
 
 export interface Landmark {
   x: number;
@@ -18,21 +17,39 @@ export interface HandData {
 
 export type HandCallback = (data: HandData) => void;
 
-const LEFT_THRESHOLD = 0.40;
-const RIGHT_THRESHOLD = 0.60;
+const LEFT_THRESHOLD = 0.4;
+const RIGHT_THRESHOLD = 0.6;
 
 export const HAND_CONNECTIONS: [number, number][] = [
-  [0, 1], [1, 2], [2, 3], [3, 4],
-  [0, 5], [5, 6], [6, 7], [7, 8],
-  [0, 9], [9, 10], [10, 11], [11, 12],
-  [0, 13], [13, 14], [14, 15], [15, 16],
-  [0, 17], [17, 18], [18, 19], [19, 20],
-  [5, 9], [9, 13], [13, 17], [1, 5],
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4],
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8],
+  [0, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12],
+  [0, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16],
+  [0, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20],
+  [5, 9],
+  [9, 13],
+  [13, 17],
+  [1, 5],
 ];
 
 export class HandTracker {
-  private hands: any;
-  private camera: any;
+  private hands: Hands;
+  private camera: Camera;
   private callback: HandCallback;
   private running = false;
   private smoothAlpha = 0.55;
@@ -42,8 +59,7 @@ export class HandTracker {
     this.callback = callback;
 
     this.hands = new Hands({
-      locateFile: (file: string) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
+      locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`,
     });
 
     this.hands.setOptions({
@@ -53,7 +69,7 @@ export class HandTracker {
       minTrackingConfidence: 0.5,
     });
 
-    this.hands.onResults((results: any) => this.onResults(results));
+    this.hands.onResults((results) => this.onResults(results));
 
     this.camera = new Camera(videoElement, {
       onFrame: async () => {
@@ -92,7 +108,7 @@ export class HandTracker {
     }
   }
 
-  private onResults(results: any): void {
+  private onResults(results: MediaPipeResults): void {
     if (!this.running) return;
 
     const allLandmarks = results.multiHandLandmarks;
@@ -102,32 +118,26 @@ export class HandTracker {
     let rawCenterX = 0.5;
     const landmarksOut: Landmark[][] = [];
 
-    if (handsDetected >= 2) {
+    if (allLandmarks && handsDetected >= 2) {
       const lm0 = allLandmarks[0];
       const lm1 = allLandmarks[1];
       const palm0 = (lm0[0].x + lm0[5].x + lm0[9].x) / 3;
       const palm1 = (lm1[0].x + lm1[5].x + lm1[9].x) / 3;
       rawCenterX = 1 - (palm0 + palm1) / 2;
-    } else if (handsDetected === 1) {
+    } else if (allLandmarks && handsDetected === 1) {
       const lm = allLandmarks[0];
       rawCenterX = 1 - (lm[0].x + lm[5].x + lm[9].x) / 3;
     }
 
-    this.smoothedX =
-      this.smoothAlpha * rawCenterX + (1 - this.smoothAlpha) * this.smoothedX;
+    this.smoothedX = this.smoothAlpha * rawCenterX + (1 - this.smoothAlpha) * this.smoothedX;
 
     for (const lm of allLandmarks || []) {
-      landmarksOut.push(
-        lm.map((p: any) => ({ x: p.x, y: p.y, z: p.z }))
-      );
+      landmarksOut.push(lm.map((p: MediaPipeLandmark) => ({ x: p.x, y: p.y, z: p.z })));
     }
 
     const confidence =
       handsDetected > 0
-        ? handedness.reduce(
-            (sum: number, h: any) => sum + (h.score ?? 0),
-            0,
-          ) / handsDetected
+        ? handedness.reduce((sum: number, h: MediaPipeHandedness) => sum + (h.score ?? 0), 0) / handsDetected
         : 0;
 
     this.callback({
@@ -135,15 +145,13 @@ export class HandTracker {
       centerX: this.smoothedX,
       rawCenterX,
       landmarks: landmarksOut,
-      handedness: handedness.map((h: any) => h.label ?? ''),
+      handedness: handedness.map((h: MediaPipeHandedness) => h.label ?? ''),
       confidence,
     });
   }
 }
 
-export function getDirection(
-  centerX: number,
-): 'LEFT' | 'STRAIGHT' | 'RIGHT' {
+export function getDirection(centerX: number): 'LEFT' | 'STRAIGHT' | 'RIGHT' {
   if (centerX < LEFT_THRESHOLD) return 'LEFT';
   if (centerX > RIGHT_THRESHOLD) return 'RIGHT';
   return 'STRAIGHT';

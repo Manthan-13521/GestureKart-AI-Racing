@@ -34,7 +34,7 @@ function createAICar(carIndex, carData) {
       aggression: Math.random() * 0.6,
       consistency: 0.5 + Math.random() * 0.5,
       braking: 0.3 + Math.random() * 0.4,
-    }
+    },
   };
 }
 
@@ -102,7 +102,7 @@ function updateAI(ai, dt, raceTime, playerProgress, playerLap, allCars, trackPts
     const idx = (ai.progress + i + trackPts.length) % trackPts.length;
     const px = trackPts[idx].x - ai.x;
     const py = trackPts[idx].y - ai.y;
-    const dist = px*px + py*py;
+    const dist = px * px + py * py;
     if (dist < minDist) {
       minDist = dist;
       closestIdx = idx;
@@ -127,7 +127,7 @@ function updateAI(ai, dt, raceTime, playerProgress, playerLap, allCars, trackPts
   const closest = trackPts[closestIdx];
   const offX = ai.x - closest.x;
   const offY = ai.y - closest.y;
-  const offDist = Math.sqrt(offX*offX + offY*offY);
+  const offDist = Math.sqrt(offX * offX + offY * offY);
   if (offDist > 40) {
     const pull = 0.02;
     ai.x -= offX * pull;

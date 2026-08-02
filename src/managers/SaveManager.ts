@@ -54,6 +54,10 @@ export class SaveManager {
     return this.data.bestScore;
   }
 
+  get version(): number {
+    return this.data.version;
+  }
+
   setBestScore(v: number): void {
     if (v > this.data.bestScore) {
       this.data.bestScore = v;

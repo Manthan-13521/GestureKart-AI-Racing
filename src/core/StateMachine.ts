@@ -1,11 +1,4 @@
-export type AppState =
-  | 'landing'
-  | 'menu'
-  | 'howtoplay'
-  | 'settings'
-  | 'ready'
-  | 'racing'
-  | 'gameover';
+export type AppState = 'landing' | 'menu' | 'howtoplay' | 'settings' | 'ready' | 'racing' | 'gameover';
 
 const MENU_BLOCKED_STATES = new Set<AppState>(['landing', 'menu', 'howtoplay', 'settings']);
 

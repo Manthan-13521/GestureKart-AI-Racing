@@ -25,21 +25,21 @@ Built with **Three.js** for 3D rendering and **MediaPipe Hands** for real-time h
 
 ## ✨ Features
 
-| | |
-|---|---|
-| ✋ **Hand Tracking** | Real-time steering with MediaPipe Hands — show both hands to accelerate, move left/right to steer |
-| ⌨️ **Keyboard Controls** | Full keyboard fallback (`W` `A` `D` `U`) |
-| 📱 **Touch & Gyroscope** | On-screen buttons + device orientation tilt steering on mobile |
-| 🏎️ **3D Tunnel Racing** | Endless procedurally generated tunnel with neon strips, lane markings, and barrier lights |
-| 🚗 **AI Traffic** | Procedurally spawned opponent cars with emissive bodies, headlights, and tail-light glow |
-| 🎯 **Scoring & Timer** | 90-second race, position ranking, speed/score accumulation |
-| 📊 **Full HUD** | Speed gauge (analog + digital), position, lap counter, countdown timer, score |
-| 🎨 **Cockpit View** | First-person dashboard with steering wheel, hood, and green-glowing display |
-| 🔊 **Engine Audio** | Web Audio API synthesized engine sound (pitch tracks speed) + collision sound |
-| 🎬 **Juice Effects** | Speed lines, speed vignette, screen shake, collision flash, countdown animation |
-| 📐 **Configurable Sensitivity** | Slider-adjustable steering responsiveness |
-| 🔄 **Auto-Accelerate** | Toggle to keep the car moving automatically |
-| 📱 **Responsive** | Adaptive layout across desktop, tablet, and mobile with touch controls |
+|                                 |                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| ✋ **Hand Tracking**            | Real-time steering with MediaPipe Hands — show both hands to accelerate, move left/right to steer |
+| ⌨️ **Keyboard Controls**        | Full keyboard fallback (`W` `A` `D` `U`)                                                          |
+| 📱 **Touch & Gyroscope**        | On-screen buttons + device orientation tilt steering on mobile                                    |
+| 🏎️ **3D Tunnel Racing**         | Endless procedurally generated tunnel with neon strips, lane markings, and barrier lights         |
+| 🚗 **AI Traffic**               | Procedurally spawned opponent cars with emissive bodies, headlights, and tail-light glow          |
+| 🎯 **Scoring & Timer**          | 90-second race, position ranking, speed/score accumulation                                        |
+| 📊 **Full HUD**                 | Speed gauge (analog + digital), position, lap counter, countdown timer, score                     |
+| 🎨 **Cockpit View**             | First-person dashboard with steering wheel, hood, and green-glowing display                       |
+| 🔊 **Engine Audio**             | Web Audio API synthesized engine sound (pitch tracks speed) + collision sound                     |
+| 🎬 **Juice Effects**            | Speed lines, speed vignette, screen shake, collision flash, countdown animation                   |
+| 📐 **Configurable Sensitivity** | Slider-adjustable steering responsiveness                                                         |
+| 🔄 **Auto-Accelerate**          | Toggle to keep the car moving automatically                                                       |
+| 📱 **Responsive**               | Adaptive layout across desktop, tablet, and mobile with touch controls                            |
 
 <br>
 
@@ -136,11 +136,11 @@ npm run preview
 
 ## 📜 Available Scripts
 
-| Script | Description |
-|---|---|
-| `npm run dev` | Start Vite dev server |
-| `npm run build` | TypeScript compile + Vite production build |
-| `npm run preview` | Preview the production build locally |
+| Script            | Description                                |
+| ----------------- | ------------------------------------------ |
+| `npm run dev`     | Start Vite dev server                      |
+| `npm run build`   | TypeScript compile + Vite production build |
+| `npm run preview` | Preview the production build locally       |
 
 <br>
 
@@ -148,33 +148,33 @@ npm run preview
 
 ### ✋ Hand Tracking (Primary)
 
-| Gesture | Action |
-|---|---|
-| Show both hands | Car accelerates |
-| Move both hands left | Steer left |
-| Move both hands right | Steer right |
-| Center both hands | Go straight |
-| Hide hands | Car slows down |
+| Gesture               | Action          |
+| --------------------- | --------------- |
+| Show both hands       | Car accelerates |
+| Move both hands left  | Steer left      |
+| Move both hands right | Steer right     |
+| Center both hands     | Go straight     |
+| Hide hands            | Car slows down  |
 
 > Palm-center (average of wrist + index MCP + middle MCP) is used instead of fingertips for stable, jitter-free tracking.
 
 ### ⌨️ Keyboard (Fallback)
 
-| Key | Action |
-|---|---|
-| `W` / `Arrow Up` | Accelerate / Start race |
-| `A` / `Arrow Left` | Steer left |
-| `D` / `Arrow Right` | Steer right |
-| `U` | Toggle auto-accelerate |
+| Key                 | Action                  |
+| ------------------- | ----------------------- |
+| `W` / `Arrow Up`    | Accelerate / Start race |
+| `A` / `Arrow Left`  | Steer left              |
+| `D` / `Arrow Right` | Steer right             |
+| `U`                 | Toggle auto-accelerate  |
 
 ### 📱 Touch / Mobile
 
-| Control | Action |
-|---|---|
-| On-screen left/right buttons | Steer |
-| On-screen GAS button | Accelerate |
-| On-screen AUTO button | Toggle auto-accelerate |
-| Double-tap mode label | Switch between touch and gyroscope steering |
+| Control                      | Action                                      |
+| ---------------------------- | ------------------------------------------- |
+| On-screen left/right buttons | Steer                                       |
+| On-screen GAS button         | Accelerate                                  |
+| On-screen AUTO button        | Toggle auto-accelerate                      |
+| Double-tap mode label        | Switch between touch and gyroscope steering |
 
 ### Input Priority
 
@@ -207,21 +207,21 @@ Webcam → MediaPipe Hands → Palm-center landmarks (wrist + index MCP + middle
 
 ## 🎨 Visual & Audio Features
 
-| Category | Details |
-|---|---|
-| **Tunnel** | Procedural 18-segment tunnel with neon wall strips, ceiling lights, lane markings, directional arrows |
-| **Cockpit** | Low-poly hood, dashboard with green-glowing screen, steering wheel (rotates with input) |
-| **Lighting** | Ambient, spot, hemisphere, and fill lights + ACES filmic tone mapping |
-| **Fog** | Scene fog for depth perception (50–250 units) |
-| **Headlights** | Two dynamic point lights that follow the steering position |
-| **AI Cars** | Randomized colors, emissive bodies, tail lights with point-light glow, underbody glow |
-| **Speed Lines** | Radial lines on overlay canvas, intensity scales with speed |
-| **Vignette** | Radial gradient overlay that darkens edges at high speed |
-| **Screen Shake** | Intensity-decaying camera shake on collision |
-| **Collision Flash** | Red screen overlay with 450ms fade-out |
-| **Countdown** | 3-2-1-GO with CSS scale animation |
-| **Engine Sound** | Sawtooth oscillator via Web Audio API, frequency ramps with speed |
-| **Collision Sound** | Square-wave burst |
+| Category            | Details                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Tunnel**          | Procedural 18-segment tunnel with neon wall strips, ceiling lights, lane markings, directional arrows |
+| **Cockpit**         | Low-poly hood, dashboard with green-glowing screen, steering wheel (rotates with input)               |
+| **Lighting**        | Ambient, spot, hemisphere, and fill lights + ACES filmic tone mapping                                 |
+| **Fog**             | Scene fog for depth perception (50–250 units)                                                         |
+| **Headlights**      | Two dynamic point lights that follow the steering position                                            |
+| **AI Cars**         | Randomized colors, emissive bodies, tail lights with point-light glow, underbody glow                 |
+| **Speed Lines**     | Radial lines on overlay canvas, intensity scales with speed                                           |
+| **Vignette**        | Radial gradient overlay that darkens edges at high speed                                              |
+| **Screen Shake**    | Intensity-decaying camera shake on collision                                                          |
+| **Collision Flash** | Red screen overlay with 450ms fade-out                                                                |
+| **Countdown**       | 3-2-1-GO with CSS scale animation                                                                     |
+| **Engine Sound**    | Sawtooth oscillator via Web Audio API, frequency ramps with speed                                     |
+| **Collision Sound** | Square-wave burst                                                                                     |
 
 <br>
 
@@ -258,10 +258,10 @@ Configured for [Vercel](https://vercel.com) via `vercel.json`:
 }
 ```
 
-| | |
-|---|---|
-| **Platform** | Vercel (or any static host) |
-| **Build** | `npm run build` outputs to `dist/` |
+|                  |                                              |
+| ---------------- | -------------------------------------------- |
+| **Platform**     | Vercel (or any static host)                  |
+| **Build**        | `npm run build` outputs to `dist/`           |
 | **Requirements** | Camera permission (HTTPS required on mobile) |
 
 <br>
@@ -269,11 +269,11 @@ Configured for [Vercel](https://vercel.com) via `vercel.json`:
 ## 🌐 Browser Support
 
 | Browser | Hand Tracking | Keyboard | Touch | Gyroscope |
-|---|---|---|---|---|
-| Chrome | ✅ | ✅ | ✅ | ✅ |
-| Edge | ✅ | ✅ | ✅ | ✅ |
-| Firefox | ✅ | ✅ | ✅ | ✅ |
-| Safari | ✅ | ✅ | ✅ | ✅ |
+| ------- | ------------- | -------- | ----- | --------- |
+| Chrome  | ✅            | ✅       | ✅    | ✅        |
+| Edge    | ✅            | ✅       | ✅    | ✅        |
+| Firefox | ✅            | ✅       | ✅    | ✅        |
+| Safari  | ✅            | ✅       | ✅    | ✅        |
 
 > **Note:** Hand tracking requires a webcam and HTTPS (or localhost). Camera permission must be granted.
 

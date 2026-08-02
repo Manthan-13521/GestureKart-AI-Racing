@@ -2,7 +2,7 @@
 // Screen switching, HUD updates, minimap, car/track select, controls, pause
 
 function showScreen(screenId) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   document.getElementById(`screen-${screenId}`).classList.add('active');
 
   if (screenId === 'track-select') {
@@ -19,7 +19,8 @@ function hideControls() {
 
 function renderTrackGrid() {
   const grid = document.getElementById('track-grid');
-  grid.innerHTML = ALL_TRACKS.map((track, i) => `
+  grid.innerHTML = ALL_TRACKS.map(
+    (track, i) => `
     <div class="track-card ${i === selectedTrackIndex ? 'selected' : ''}" onclick="selectTrack(${i})">
       <div class="track-thumb" style="background:${track.bgColor}">
         <canvas id="track-thumb-${i}" width="320" height="180"></canvas>
@@ -27,14 +28,16 @@ function renderTrackGrid() {
       <div class="track-card-name">${track.name}</div>
       <div class="track-card-desc">${track.desc}</div>
     </div>
-  `).join('');
+  `
+  ).join('');
 
   // Draw track thumbnails on canvases
   ALL_TRACKS.forEach((track, i) => {
     const canvas = document.getElementById(`track-thumb-${i}`);
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
+    const w = canvas.width,
+      h = canvas.height;
 
     ctx.fillStyle = track.bgColor;
     ctx.fillRect(0, 0, w, h);
@@ -46,15 +49,18 @@ function renderTrackGrid() {
     ctx.lineJoin = 'round';
     ctx.beginPath();
     const pad = 20;
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
     for (const p of pts) {
       if (p.x < minX) minX = p.x;
       if (p.x > maxX) maxX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.y > maxY) maxY = p.y;
     }
-    const scaleX = (w - pad*2) / (maxX - minX || 1);
-    const scaleY = (h - pad*2) / (maxY - minY || 1);
+    const scaleX = (w - pad * 2) / (maxX - minX || 1);
+    const scaleY = (h - pad * 2) / (maxY - minY || 1);
     const sc = Math.min(scaleX, scaleY);
     const ox = (w - (maxX - minX) * sc) / 2 - minX * sc;
     const oy = (h - (maxY - minY) * sc) / 2 - minY * sc;
@@ -94,7 +100,9 @@ function selectTrack(index) {
 function updateHUD(state) {
   document.getElementById('hud-pos').textContent = formatPosition(state.playerPosition);
   document.getElementById('hud-lap').textContent = `LAP ${Math.min(state.playerLap + 1, 3)}/3`;
-  document.getElementById('hud-speed').querySelector('.speed-val').textContent = Math.floor(state.playerSpeed * 100);
+  document.getElementById('hud-speed').querySelector('.speed-val').textContent = Math.floor(
+    state.playerSpeed * 100
+  );
   document.getElementById('hud-time').textContent = formatTime(state.raceTime);
 }
 
@@ -117,13 +125,17 @@ function updateMinimap(cars, playerIndex, trackPts, track) {
   const canvas = document.getElementById('minimap-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
+  const w = canvas.width,
+    h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
   ctx.fillStyle = 'rgba(10, 12, 18, 0.85)';
   ctx.fillRect(0, 0, w, h);
 
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
   for (const p of trackPts) {
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
@@ -132,8 +144,8 @@ function updateMinimap(cars, playerIndex, trackPts, track) {
   }
 
   const pad = 10;
-  const scaleX = (w - pad*2) / (maxX - minX || 1);
-  const scaleY = (h - pad*2) / (maxY - minY || 1);
+  const scaleX = (w - pad * 2) / (maxX - minX || 1);
+  const scaleY = (h - pad * 2) / (maxY - minY || 1);
   const sc = Math.min(scaleX, scaleY);
   const ox = (w - (maxX - minX) * sc) / 2 - minX * sc;
   const oy = (h - (maxY - minY) * sc) / 2 - minY * sc;
@@ -164,7 +176,7 @@ function updateMinimap(cars, playerIndex, trackPts, track) {
       ctx.shadowBlur = 4;
     }
     ctx.beginPath();
-    ctx.arc(x, y, isPlayer ? 4 : 3, 0, Math.PI*2);
+    ctx.arc(x, y, isPlayer ? 4 : 3, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
   });
@@ -181,11 +193,17 @@ function showResults(cars, playerIndex, raceTime) {
   });
 
   const podium = document.getElementById('results-podium');
-  podium.innerHTML = sorted.slice(0, 4).map((car, i) => {
-    const pos = i + 1;
-    const carName = car.carData ? car.carData.name : `Racer ${pos}`;
-    const finishTime = car.finished ? formatTime(car.finishTime) : car.lap >= 3 ? formatTime(car.totalRaceTime) : `LAP ${car.lap}`;
-    return `
+  podium.innerHTML = sorted
+    .slice(0, 4)
+    .map((car, i) => {
+      const pos = i + 1;
+      const carName = car.carData ? car.carData.name : `Racer ${pos}`;
+      const finishTime = car.finished
+        ? formatTime(car.finishTime)
+        : car.lap >= 3
+          ? formatTime(car.totalRaceTime)
+          : `LAP ${car.lap}`;
+      return `
       <div class="podium-item">
         <div class="podium-place p${pos}">${pos}${pos === 1 ? 'ST' : pos === 2 ? 'ND' : pos === 3 ? 'RD' : 'TH'}</div>
         <div class="podium-bar p${pos}"></div>
@@ -193,18 +211,25 @@ function showResults(cars, playerIndex, raceTime) {
         <div class="podium-time">${finishTime}</div>
       </div>
     `;
-  }).join('');
+    })
+    .join('');
 
   const table = document.getElementById('results-table');
   table.innerHTML = `
     <tr><th>POS</th><th>DRIVER</th><th>LAPS</th><th>TIME</th></tr>
-    ${sorted.map((car, i) => {
-      const pos = i + 1;
-      const isPlayer = car === cars[playerIndex];
-      const carName = car.carData ? car.carData.name : `Racer ${pos}`;
-      const finishTime = car.finished ? formatTime(car.finishTime) : car.lap >= 3 ? formatTime(car.totalRaceTime) : `LAP ${car.lap}`;
-      return `<tr class="${isPlayer ? 'player-row' : ''}"><td>${pos}</td><td>${isPlayer ? '★ ' : ''}${carName}</td><td>${Math.min(car.lap + 1, 3)}/3</td><td>${finishTime}</td></tr>`;
-    }).join('')}
+    ${sorted
+      .map((car, i) => {
+        const pos = i + 1;
+        const isPlayer = car === cars[playerIndex];
+        const carName = car.carData ? car.carData.name : `Racer ${pos}`;
+        const finishTime = car.finished
+          ? formatTime(car.finishTime)
+          : car.lap >= 3
+            ? formatTime(car.totalRaceTime)
+            : `LAP ${car.lap}`;
+        return `<tr class="${isPlayer ? 'player-row' : ''}"><td>${pos}</td><td>${isPlayer ? '★ ' : ''}${carName}</td><td>${Math.min(car.lap + 1, 3)}/3</td><td>${finishTime}</td></tr>`;
+      })
+      .join('')}
   `;
 
   showScreen('results');
