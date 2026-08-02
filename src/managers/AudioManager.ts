@@ -68,4 +68,17 @@ export class AudioManager {
       this.subGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.2);
     }
   }
+
+  dispose(): void {
+    this.engineOsc?.stop();
+    this.subOsc?.stop();
+    this.engineGain?.disconnect();
+    this.subGain?.disconnect();
+    void this.ctx?.close();
+    this.engineOsc = null;
+    this.subOsc = null;
+    this.engineGain = null;
+    this.subGain = null;
+    this.ctx = null;
+  }
 }

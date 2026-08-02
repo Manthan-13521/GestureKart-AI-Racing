@@ -1,7 +1,7 @@
 import { HandTracker, HandData, getDirection, HAND_CONNECTIONS } from './input/HandTracker';
 import type { GameKeys } from './input/Keyboard';
 import { Game, GameState } from './game/Game';
-import { EventBus } from './core/EventBus';
+import { AppEvents, EventBus } from './core/EventBus';
 import { StateMachine, type AppState } from './core/StateMachine';
 import { ResourceManager } from './managers/ResourceManager';
 import { AudioManager } from './managers/AudioManager';
@@ -374,12 +374,12 @@ function syncAutoUI(on: boolean): void {
   updateStatus();
 }
 
-bus.on('auto', (on: boolean) => {
+bus.on(AppEvents.autoToggle, (on: boolean) => {
   syncAutoUI(on);
   saveManager.autoAccelerate = on;
 });
 
-bus.on('gyro', (on: boolean) => {
+bus.on(AppEvents.gyroToggle, (on: boolean) => {
   touchModeLabel.textContent = on ? 'GYRO' : 'TOUCH';
   updateStatus();
   saveManager.gyroscopeMode = on;
@@ -594,12 +594,7 @@ function gameLoop(): void {
 // ─── Sensitivity ───────────────────────────────────────────────────
 function setupSensitivity(): void {
   sensitivitySlider.addEventListener('input', () => {
-    const val = parseInt(sensitivitySlider.value, 10);
-    sensitivityValue.textContent = `${val}%`;
-    saveManager.sensitivity = val;
-    const alpha = val / 100;
-    if (tracker) tracker.setSmoothing(1 - alpha * 0.6);
-    if (game) game.setSensitivity(alpha);
+    applySensitivity(parseInt(sensitivitySlider.value, 10));
   });
 }
 
@@ -677,13 +672,17 @@ function drawSpeedLines(speed: number, steerX: number): void {
 }
 
 // ─── Init ──────────────────────────────────────────────────────────
-function applySavedSensitivity(): void {
-  const val = saveManager.sensitivity;
-  sensitivitySlider.value = `${val}`;
-  sensitivityValue.textContent = `${val}%`;
+function applySensitivity(val: number): void {
   const alpha = val / 100;
+  saveManager.sensitivity = val;
+  sensitivityValue.textContent = `${val}%`;
   if (tracker) tracker.setSmoothing(1 - alpha * 0.6);
   if (game) game.setSensitivity(alpha);
+}
+
+function applySavedSensitivity(): void {
+  applySensitivity(saveManager.sensitivity);
+  sensitivitySlider.value = `${saveManager.sensitivity}`;
 }
 
 async function init(): Promise<void> {
@@ -744,11 +743,7 @@ async function init(): Promise<void> {
   settingsBack.addEventListener('click', () => {
     const val = parseInt(menuSensitivitySlider.value, 10);
     sensitivitySlider.value = `${val}`;
-    sensitivityValue.textContent = `${val}%`;
-    saveManager.sensitivity = val;
-    const alpha = val / 100;
-    if (tracker) tracker.setSmoothing(1 - alpha * 0.85);
-    if (game) game.setSensitivity(alpha);
+    applySensitivity(val);
     stateMachine.set('menu');
   });
 
@@ -820,6 +815,7 @@ async function init(): Promise<void> {
 
   window.addEventListener('beforeunload', () => {
     game?.dispose();
+    audioManager.dispose();
   });
 
   updateStatus();

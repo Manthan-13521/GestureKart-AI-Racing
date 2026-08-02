@@ -1,5 +1,5 @@
 import { KeyboardHandler, type GameKeys } from '../input/Keyboard';
-import type { EventBus } from '../core/EventBus';
+import { AppEvents, type EventBus } from '../core/EventBus';
 
 export interface TouchElements {
   left: HTMLElement;
@@ -16,13 +16,12 @@ export class InputManager {
   gyroTilt = 0;
   autoAccelerate = false;
 
-  private keyboard: KeyboardHandler;
   private keyCallback: ((keys: GameKeys) => void) | null = null;
   private touchApply: (() => void) | null = null;
   private orientationListener: ((e: DeviceOrientationEvent) => void) | null = null;
 
   constructor(private bus: EventBus) {
-    this.keyboard = new KeyboardHandler((keys) => {
+    new KeyboardHandler((keys) => {
       Object.assign(this.keys, keys);
       this.keyCallback?.(keys);
     });
@@ -46,7 +45,7 @@ export class InputManager {
   setAutoAccelerate(on: boolean): void {
     if (this.autoAccelerate === on) return;
     this.autoAccelerate = on;
-    this.bus.emit('auto', on);
+    this.bus.emit(AppEvents.autoToggle, on);
   }
 
   bindTouchControls(els: TouchElements): void {
@@ -86,7 +85,7 @@ export class InputManager {
       const now = Date.now();
       if (now - lastTap < 400) {
         this.gyroscopeMode = !this.gyroscopeMode;
-        this.bus.emit('gyro', this.gyroscopeMode);
+        this.bus.emit(AppEvents.gyroToggle, this.gyroscopeMode);
         this.initGyro();
       }
       lastTap = now;

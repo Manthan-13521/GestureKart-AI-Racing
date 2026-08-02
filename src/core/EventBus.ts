@@ -1,5 +1,10 @@
 type Listener<T> = (payload: T) => void;
 
+export const AppEvents = {
+  autoToggle: 'auto:toggle',
+  gyroToggle: 'gyro:toggle',
+} as const;
+
 export class EventBus {
   private listeners = new Map<string, Set<Listener<unknown>>>();
 
@@ -21,9 +26,5 @@ export class EventBus {
     for (const fn of [...set]) {
       fn(payload);
     }
-  }
-
-  clear(): void {
-    this.listeners.clear();
   }
 }

@@ -12,9 +12,11 @@ export class SceneManager {
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;
   readonly mobile: boolean;
+  private resources: ResourceManager;
 
   constructor(canvas: HTMLCanvasElement, options: SceneOptions, resources: ResourceManager) {
     this.mobile = options.mobile;
+    this.resources = resources;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x050709);
@@ -57,5 +59,6 @@ export class SceneManager {
         material.dispose();
       }
     });
+    this.resources.disposeAll();
   }
 }
