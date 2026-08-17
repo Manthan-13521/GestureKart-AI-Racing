@@ -2,11 +2,11 @@ import { Screen } from '../ui/components/Screen';
 import { Button } from '../ui/components/Button';
 import { AnimationSystem } from '../ui/core/AnimationSystem';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
-import { spawnParticles, spawnGrid, spawnAurora } from './ambient';
+import { spawnParticles, spawnGrid, spawnAurora, spawnRoad } from './ambient';
 
 /**
- * Cinematic main menu: animated title glow, ambient grid + particles,
- * staggered action buttons, best-score line.
+ * Cinematic main menu: animated title glow, ambient grid + particles +
+ * racing lane, staggered action buttons, best-score line.
  */
 export class MainMenuScreen extends Screen {
   bestScore = 0;
@@ -28,6 +28,7 @@ export class MainMenuScreen extends Screen {
     spawnGrid(this.el);
     spawnAurora(this.el);
     spawnParticles(this.el);
+    spawnRoad(this.el);
 
     const wrap = document.createElement('div');
     wrap.className = 'screen-inner';

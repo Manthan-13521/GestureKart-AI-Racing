@@ -19,7 +19,7 @@ export class GameplayScreen extends Screen {
   }
 
   protected transition(): TransitionKind {
-    return 'fade';
+    return 'scale';
   }
 
   protected build(_params: Record<string, unknown>): void {

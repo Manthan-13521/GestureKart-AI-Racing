@@ -39,3 +39,17 @@ export function spawnAurora(container: HTMLElement): void {
     container.appendChild(blob);
   }
 }
+
+/**
+ * Racing lane layer: a perspective highway strip with animated centre lane
+ * dashes on the home screen. Transform-only animation (no layout/paint
+ * churn), created only when motion is allowed. `null` when reduced motion.
+ */
+export function spawnRoad(container: HTMLElement): HTMLElement | null {
+  if (isMotionReduced()) return null;
+  const road = document.createElement('div');
+  road.className = 'home-road';
+  road.setAttribute('aria-hidden', 'true');
+  container.appendChild(road);
+  return road;
+}

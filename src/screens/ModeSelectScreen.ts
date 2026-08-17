@@ -103,25 +103,37 @@ export class ModeSelectScreen extends Screen {
     controlLabel.textContent = 'CONTROL METHOD';
     controlWrap.appendChild(controlLabel);
 
+    const status = document.createElement('div');
+    status.className = 'visually-hidden';
+    status.setAttribute('data-live', 'control-method');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
+    controlWrap.appendChild(status);
+
     const chips = document.createElement('div');
     chips.className = 'control-method-chips';
     chips.setAttribute('data-focus-group', 'control-method');
+    chips.setAttribute('role', 'group');
+    chips.setAttribute('aria-label', 'Control method');
     this.chipEls = CONTROL_METHODS.map((m) => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'control-chip';
-      chip.textContent = m.label;
       chip.dataset.method = m.id;
       chip.setAttribute('aria-pressed', this.controlMethod === m.id ? 'true' : 'false');
       if (m.pending) chip.classList.add('is-unavailable', 'is-pending');
+      const text = document.createElement('span');
+      text.textContent = m.label;
+      chip.appendChild(text);
+      if (m.pending) {
+        const pending = document.createElement('span');
+        pending.className = 'control-chip-pending';
+        pending.textContent = 'Soon';
+        chip.appendChild(pending);
+      }
       chip.addEventListener('click', () => {
         if (chip.disabled) return;
-        SoundHooks.confirm();
-        this.controlMethod = m.id;
-        for (const other of this.chipEls) {
-          other.setAttribute('aria-pressed', other === chip ? 'true' : 'false');
-          other.classList.toggle('active', other === chip);
-        }
+        this.selectMethod(m.id);
       });
       if (this.controlMethod === m.id) chip.classList.add('active');
       chips.appendChild(chip);
@@ -139,11 +151,11 @@ export class ModeSelectScreen extends Screen {
         badge: `Difficulty ${'★'.repeat(mode.ui.difficulty)}${'☆'.repeat(3 - mode.ui.difficulty)}`,
         focusable: true,
         onClick: () => {
-          SoundHooks.confirm();
           for (const other of cards) other.setSelected(false);
           card.setSelected(true);
           this.controlMethod = clampControlMethod(this.controlMethod, mode);
           this.syncChipAvailability(mode.id);
+          this.selectMethod(this.controlMethod);
           this.onSelect?.(mode.id);
         },
       });
@@ -190,6 +202,30 @@ export class ModeSelectScreen extends Screen {
   }
 
   /**
+   * Select a control method: updates state, aria-pressed, and the active
+   * highlight across the chip row. Also announces the change for AT when
+   * caused by direct user intent (chip click).
+   */
+  private selectMethod(m: ControlMethod, opts: { announce?: boolean } = {}): void {
+    this.controlMethod = m;
+    for (const other of this.chipEls) {
+      const selected = other.dataset.method === m;
+      other.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      other.classList.toggle('active', selected);
+    }
+    if (opts.announce !== false) {
+      SoundHooks.confirm();
+      this.setStatusMessage(`${m.replace(/-/g, ' ')} selected`);
+    }
+  }
+
+  /** Live-region text for accessible confirmation (no-op when unsupported). */
+  private setStatusMessage(msg: string): void {
+    const live = this.el.querySelector('[data-live="control-method"]');
+    if (live) live.textContent = msg;
+  }
+
+  /**
    * Mark control methods that `mode` disallows as unavailable, and dim the
    * rest. `mode === null` shows all implemented methods as available.
    *
@@ -205,7 +241,7 @@ export class ModeSelectScreen extends Screen {
       if (!el) continue;
       const allowedForMode = mode === null ? true : isSourceAllowed(mode, def.source);
       const available = allowedForMode && !def.pending;
-      el.disabled = def.pending;
+      el.disabled = !!def.pending;
       el.classList.toggle('is-unavailable', !available);
       el.setAttribute('aria-disabled', available ? 'false' : 'true');
       el.title = available ? '' : `Unavailable for ${mode ?? 'selected mode'}`;
