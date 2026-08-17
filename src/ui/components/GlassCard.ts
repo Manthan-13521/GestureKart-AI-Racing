@@ -1,5 +1,4 @@
 import { Component } from '../core/Component';
-import { SoundHooks } from '../core/SoundHooks';
 
 export interface GlassCardOptions {
   title?: string;
@@ -59,13 +58,8 @@ export class GlassCard extends Component<HTMLElement> {
 
     if (opts.onClick) {
       this.on('click', '.glass-card', opts.onClick);
-      this.el.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          SoundHooks.confirm();
-          opts.onClick?.();
-        }
-      });
+      // Activation (Enter/Space) is handled by the screen-level FocusNavigator
+      // so there is exactly one activation path per focused control.
     }
   }
 

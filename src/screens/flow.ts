@@ -3,18 +3,22 @@ import { SplashScreen } from './SplashScreen';
 import { LoadingScreen } from './LoadingScreen';
 import { MainMenuScreen } from './MainMenuScreen';
 import { TrackSelectScreen, type TrackId } from './TrackSelectScreen';
-import { ModeSelectScreen, type ModeId } from './ModeSelectScreen';
+import { ModeSelectScreen, type ModeId, type ControlMethod } from './ModeSelectScreen';
 import { LobbyScreen } from './LobbyScreen';
 import { GameplayScreen } from './GameplayScreen';
 import { SettingsScreen, type SettingsApi } from './SettingsScreen';
 import { GarageScreen } from './GarageScreen';
 import { HowToPlayScreen } from './HowToPlayScreen';
+import { PhoneControllerScreen } from './PhoneControllerScreen';
+import type { PhoneSource } from '../input/PhoneSource';
+import { GAME_MODES, isSourceAllowed } from '../game/GameModeConfig';
 
 export interface FlowApi {
   getBestScore: () => number;
   settings: SettingsApi;
   garage: GarageScreen;
   howToPlay: HowToPlayScreen;
+  phone: PhoneSource;
   startRace: (
     trackId: TrackId,
     modeId: ModeId,
@@ -25,9 +29,47 @@ export interface FlowApi {
 let lastTrack: TrackId = 'cyber-city';
 let lastMode: ModeId = 'survival';
 
+/** Internal: decides the next route from mode-select given (mode, controlMethod). */
+function resolveNextRoute(
+  modeId: ModeId,
+  controlMethod: ControlMethod,
+  track: TrackId
+): { route: string; params: Record<string, unknown> } {
+  const mode = GAME_MODES[modeId];
+  const phoneAllowed = isSourceAllowed(modeId, 'phone');
+
+  if (controlMethod === 'phone' && phoneAllowed) {
+    return {
+      route: 'phone-pairing',
+      params: { track, mode: modeId },
+    };
+  }
+
+  if (mode.features.multiplayer) {
+    return {
+      route: 'lobby',
+      params: { track },
+    };
+  }
+
+  return {
+    route: 'loading',
+    params: {
+      label: 'Preparing race',
+      next: 'gameplay',
+      track,
+      mode: modeId,
+    },
+  };
+}
+
+export function lastSelection(): { track: TrackId; mode: ModeId } {
+  return { track: lastTrack, mode: lastMode };
+}
+
 /**
  * Registers all screens and wires the canonical flow:
- * Splash → Loading → Main Menu → Track Select → Mode Select → Loading → Gameplay.
+ * Home → Track Select → Mode Select → Control Method → Phone Pairing (if Phone) → Loading → Gameplay.
  * Screens stay navigation-agnostic; callbacks are injected here.
  */
 export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
@@ -43,9 +85,9 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
     create: () => {
       const screen = new LoadingScreen();
       screen.onDone = () => {
-        const p = screen.params as { next?: string; track?: TrackId; mode?: ModeId };
+        const p = screen.params as { next?: string; track?: TrackId; mode?: ModeId; network?: unknown };
         if (p.next === 'gameplay') {
-          void nav.go('gameplay', { track: p.track, mode: p.mode });
+          void nav.go('gameplay', { track: p.track, mode: p.mode, network: p.network });
         } else {
           void nav.go('menu');
         }
@@ -86,18 +128,31 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       screen.trackId = lastTrack;
       screen.onSelect = (modeId) => {
         lastMode = modeId;
-        if (modeId === 'multiplayer') {
-          void nav.go('lobby', { track: lastTrack });
-        } else {
-          void nav.go('loading', {
-            label: 'Preparing race',
-            next: 'gameplay',
-            track: lastTrack,
-            mode: modeId,
-          });
-        }
+        const { route, params } = resolveNextRoute(modeId, screen.controlMethod, lastTrack);
+        void nav.go(route, params);
       };
       screen.onBack = () => void nav.go('track-select', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('phone-pairing', {
+    create: () => {
+      const screen = new PhoneControllerScreen(api.phone);
+      screen.onBack = () => {
+        api.phone.stop();
+        void nav.go('mode-select', {}, { transition: 'slide-right' });
+      };
+      screen.onStartRace = (track, mode) => {
+        lastTrack = track;
+        lastMode = mode;
+        void nav.go('loading', {
+          label: 'Preparing race',
+          next: 'gameplay',
+          track,
+          mode,
+        });
+      };
       return screen;
     },
   });
@@ -155,8 +210,4 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       return screen;
     },
   });
-}
-
-export function lastSelection(): { track: TrackId; mode: ModeId } {
-  return { track: lastTrack, mode: lastMode };
 }

@@ -7,9 +7,9 @@ import { GhostHud } from './hud';
 import { computeOutcome, playerLeadTime } from './logic';
 import type { ReplayOutcome } from './types';
 import { REPLAY_VERSION, NO_OUTCOME } from './types';
+import { GAME_MODES, type ModeId } from '../game/GameModeConfig';
 
 const GHOST_LEAD = 16;
-const GHOST_MODE = 'versus';
 
 export interface ReplayRuntimeOptions {
   scene: Pick<THREE.Scene, 'add' | 'remove'>;
@@ -76,7 +76,7 @@ export class ReplayRuntime {
     this.outcome = { ...NO_OUTCOME };
     this.hud?.setVisible(false);
 
-    if (mode === GHOST_MODE) {
+    if (GAME_MODES[mode as ModeId].features.ghost) {
       const best = this.store.getBest(track, mode);
       if (best && best.version === REPLAY_VERSION) {
         this.player = new ReplayPlayer(best);

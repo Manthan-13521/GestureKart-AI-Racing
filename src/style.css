@@ -5,45 +5,71 @@
    ================================================================ */
 
 /* ─── Design Tokens ─── */
+/* Single canonical token namespace for the whole app.
+   The former `--ui-*` suite in ui.css has been folded into this set. */
 :root {
   /* Ground */
   --bg: #06080c;
   --surface: #0d1017;
   --surface2: #151921;
   --surface3: #1c212b;
+  --bg-2: #0a0e16; /* elevated backdrop (modal / toast) */
+
+  /* Translucent surfaces */
+  --glass: rgba(255, 255, 255, 0.025);
+  --glass-2: rgba(255, 255, 255, 0.05);
 
   /* Borders */
   --border: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.06); /* legacy card edge */
+  --border-2: rgba(255, 255, 255, 0.08); /* crisp UI edge */
   --border-bright: rgba(255, 255, 255, 0.1);
+  --border-hot: rgba(255, 255, 255, 0.18); /* hover / selected edge */
 
   /* Accents — reserved for meaning */
   --red: #e10600;
+  --red-2: #ff4d5e; /* bright UI red (errors) */
   --gold: #ffd700;
   --blue: #00d4ff;
+  --blue-2: #38bdf8; /* UI sky blue (info) */
   --green: #00ff41;
   --accent: var(--green);
+  --accent-2: #2dff9a; /* UI mint accent (success / gesture) */
 
   /* Text */
   --text: #ffffff;
   --text2: #8b8fa0;
   --text3: #505566;
 
-  /* Glass */
-  --glass: rgba(255, 255, 255, 0.025);
-  --glass-border: rgba(255, 255, 255, 0.06);
-
   /* Typography */
   --font-display: 'Orbitron', monospace, sans-serif;
   --font-hud: 'Rajdhani', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: var(--font-hud);
 
   /* Spacing */
   --radius: 10px;
+  --radius-2: 18px; /* large glass card radius */
   --radius-sm: 6px;
   --nav-h: 44px;
 
+  /* Elevation */
+  --z-screen: 10;
+  --z-modal: 100;
+  --z-toast: 200;
+
+  /* UI scale (large HUD accessibility) */
+  --scale: 1;
+
+  /* Shadows / glows */
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.55);
+  --glow-gold: 0 0 18px rgba(255, 215, 0, 0.35);
+  --glow-accent: 0 0 18px rgba(45, 255, 154, 0.35);
+
   /* Transitions */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ─── Reset ─── */
@@ -928,7 +954,7 @@ body {
 }
 .ghost-hud-times b {
   font-weight: 700;
-  color: var(--text1);
+  color: var(--text);
 }
 .ghost-hud-sectors {
   display: flex;

@@ -4,8 +4,9 @@ import { GlassCard } from '../ui/components/GlassCard';
 import { AnimationSystem } from '../ui/core/AnimationSystem';
 import { SoundHooks } from '../ui/core/SoundHooks';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
+import type { TrackId } from '../game/GameModeConfig';
 
-export type TrackId = 'cyber-city' | 'mountain-highway' | 'space-highway';
+export type { TrackId };
 
 export interface TrackDef {
   id: TrackId;

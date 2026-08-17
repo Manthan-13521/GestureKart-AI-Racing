@@ -28,12 +28,12 @@ export class HowToPlayScreen extends Screen {
     content.style.flexDirection = 'column';
     content.style.alignItems = 'flex-start';
     content.innerHTML = `
-      <p style="color: var(--ui-text-2); font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
+      <p style="color: var(--text2); font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
         Steer the car by tilting your hand.
         Keep your hand flat (palm facing down) for neutral steering.
         Tilt left to steer left, tilt right to steer right.
       </p>
-      <p style="color: var(--ui-text-2); font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
+      <p style="color: var(--text2); font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
         Avoid other cars on the road to maintain your speed and finish in 1st place!
       </p>
     `;

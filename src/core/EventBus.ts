@@ -3,6 +3,7 @@ type Listener<T> = (payload: T) => void;
 export const AppEvents = {
   autoToggle: 'auto:toggle',
   gyroToggle: 'gyro:toggle',
+  phoneState: 'phone:state',
 } as const;
 
 export class EventBus {

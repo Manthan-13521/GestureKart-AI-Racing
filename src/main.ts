@@ -2,11 +2,15 @@ import { HandTracker, HandData, getDirection, HAND_CONNECTIONS } from './input/H
 import type { GameKeys } from './input/Keyboard';
 import { Game, GameState } from './game/Game';
 import { AppEvents, EventBus } from './core/EventBus';
-import { StateMachine, type AppState } from './core/StateMachine';
+import { StateMachine } from './core/StateMachine';
+import type { GamePhase } from './core/AppState';
 import { ResourceManager } from './managers/ResourceManager';
 import { AudioManager } from './managers/AudioManager';
 import { SaveManager } from './managers/SaveManager';
 import { InputManager } from './managers/InputManager';
+import { PhoneSource, type PhoneStatePayload } from './input/PhoneSource';
+import { HandSource } from './input/sources/HandSource';
+import { centerFromSteer, handsFromThrottle } from './input/InputFrame';
 import { profileManager } from './managers/ProfileManager';
 import { UIManager } from './managers/UIManager';
 import { NavigationSystem } from './ui/core/NavigationSystem';
@@ -19,6 +23,7 @@ import { ReplayRuntime, GhostHud } from './replay';
 import type { ReplayOutcome } from './replay';
 import type { TrackId } from './screens/TrackSelectScreen';
 import type { ModeId } from './screens/ModeSelectScreen';
+import { GAME_MODES, raceModeFor } from './game/GameModeConfig';
 import { AIRuntime } from './ai/AIRuntime';
 import { AIHud } from './ai/AIHud';
 import { RaceDirector } from './game/RaceDirector';
@@ -35,6 +40,10 @@ const stateMachine = new StateMachine();
 const saveManager = new SaveManager();
 const audioManager = new AudioManager();
 const inputManager = new InputManager(bus);
+const phoneSource = new PhoneSource(bus);
+const handSource = new HandSource();
+inputManager.registerSource(phoneSource);
+inputManager.registerSource(handSource);
 const ui = new UIManager();
 const themeManager = new ThemeManager(saveManager.a11y);
 
@@ -82,6 +91,7 @@ const speedArc = document.getElementById('speed-arc')!;
 
 const statusAuto = document.getElementById('status-auto')!;
 const statusAutoDot = document.getElementById('status-auto-dot')!;
+const statusPhone = document.getElementById('status-phone')!;
 const speedVignette = document.getElementById('speed-vignette')!;
 const collisionFlash = document.getElementById('collision-flash')!;
 
@@ -399,6 +409,8 @@ function updateStatus(): void {
   statusAuto.className = `status-val ${inputManager.autoAccelerate ? '' : 'inactive'}`;
   statusAutoDot.style.background = inputManager.autoAccelerate ? 'var(--gold)' : 'var(--text3)';
   statusAutoDot.style.boxShadow = inputManager.autoAccelerate ? '0 0 5px var(--gold)' : 'none';
+  statusPhone.textContent = phoneSource.phoneConnected ? 'Connected' : '—';
+  statusPhone.className = `status-val ${phoneSource.phoneConnected ? '' : 'inactive'}`;
 }
 
 // ─── Auto-accelerate UI sync ───────────────────────────────────────
@@ -419,6 +431,19 @@ bus.on(AppEvents.gyroToggle, (on: boolean) => {
   saveManager.gyroscopeMode = on;
 });
 
+bus.on(AppEvents.phoneState, (st: PhoneStatePayload) => {
+  updateStatus();
+  if (!st.connected && game) {
+    inputManager.setBase('phone', {
+      steer: 0,
+      throttle: game.handsDetected / 2,
+      brake: 0,
+      boostButton: false,
+    });
+    game.setHandData(0.5, game.handsDetected);
+  }
+});
+
 // ─── Screen state → overlays ───────────────────────────────────────────
 stateMachine.onChange((from, to) => {
   ui.sync(to);
@@ -434,7 +459,7 @@ stateMachine.onChange((from, to) => {
 
     const ceremonyContainer = document.getElementById('results-ceremony-container');
     if (ceremonyContainer) {
-      if (currentModeId === 'ai-race') {
+      if (GAME_MODES[currentModeId].features.ai) {
         const finishPos = raceDirector ? raceDirector.getState().position : 6;
         const res = tournamentManager.recordFinish(finishPos);
 
@@ -490,10 +515,10 @@ stateMachine.onChange((from, to) => {
 // ─── Race start (single path: resets game, starts replay + AI clocks) ───
 function startGame(): void {
   victoryCeremony.stop();
-  const isAIRace = currentModeId === 'ai-race';
+  const isAIRace = GAME_MODES[currentModeId].features.ai;
 
   // Configure game mode before start()
-  game.setRaceMode(isAIRace ? 'ai-race' : currentModeId === 'versus' ? 'versus' : 'survival');
+  game.setRaceMode(raceModeFor(currentModeId));
   game.start();
   stateMachine.set('racing');
   replayRuntime.begin(game.getState().raceDuration);
@@ -514,7 +539,7 @@ function startGame(): void {
 
     if (!raceDirector) raceDirector = new RaceDirector();
     raceDirector.start(1, 6); // 1 lap, 6 total cars
-  } else if (currentModeId === 'multiplayer' && activeNetwork) {
+  } else if (GAME_MODES[currentModeId].features.multiplayer && activeNetwork) {
     // Multiplayer: set up remote player visuals + listen for peer state
     if (remotePlayers) remotePlayers.dispose();
     remotePlayers = new RemotePlayerManager(game.scene3d);
@@ -627,17 +652,25 @@ function onKeysChanged(newKeys: GameKeys): void {
 
   if (game) {
     if (newKeys.up) {
-      game.setHandData(game.steerCenterX, 2);
+      inputManager.setBase('keyboard', {
+        steer: (game.steerCenterX - 0.5) * 2,
+        throttle: 1,
+        brake: 0,
+        boostButton: false,
+      });
       if (!game.started || game.gameOver) {
         const s = stateMachine.get();
-        if (s === 'landing') return;
-        if (s === 'menu') return;
+        if (s === 'idle') return;
         cancelCountdown();
         startCountdown(startGame);
       }
     } else if (newKeys.left || newKeys.right) {
-      const steerX = newKeys.left ? 0 : 1;
-      game.setHandData(steerX, inputManager.autoAccelerate ? 2 : 1);
+      inputManager.setBase('keyboard', {
+        steer: newKeys.left ? -1 : 1,
+        throttle: inputManager.autoAccelerate ? 1 : 0.5,
+        brake: 0,
+        boostButton: false,
+      });
     }
   }
 }
@@ -649,9 +682,16 @@ function onHandData(data: HandData): void {
 
   if (!game) return;
 
-  // Hand tracking always provides steering (centerX) for the game.
-  // The game loop applies keyboard/touch overrides on top when active.
-  game.setHandData(data.centerX, inputManager.autoAccelerate ? 2 : data.handsDetected);
+  // Hand tracking always provides steering (centerX) for the game via the
+  // base layer. The game loop applies keyboard/touch/phone overrides on top.
+  handSource.update(data);
+  const handFrame = handSource.read();
+  inputManager.setBase('hand', {
+    steer: handFrame.steer,
+    throttle: inputManager.autoAccelerate ? 1 : handFrame.throttle,
+    brake: 0,
+    boostButton: false,
+  });
 
   if (data.landmarks.length > 0) {
     game.setHandSkeleton(data.landmarks[0]);
@@ -659,10 +699,7 @@ function onHandData(data: HandData): void {
 
   if (!game.started && data.handsDetected >= 2 && !countdownActive) {
     const s = stateMachine.get();
-    if (s === 'landing') return;
-    if (s === 'menu') return;
-    if (s === 'howtoplay') return;
-    if (s === 'settings') return;
+    if (s === 'idle') return;
     startCountdown(startGame);
   }
 
@@ -682,34 +719,16 @@ function gameLoop(): void {
   }
 
   if (game) {
-    // Auto-accelerate layer
-    if (inputManager.autoAccelerate && !inputManager.keys.up) {
-      let steerX = game.steerCenterX;
-      if (inputManager.touch.active) {
-        // touch steering already set by applyTouchState
-      } else if (inputManager.gyroscopeMode) {
-        steerX = 0.5 + inputManager.gyroTilt * 0.4;
-      } else if (inputManager.keys.left || inputManager.keys.right) {
-        steerX = inputManager.keys.left ? 0 : 1;
-      }
-      game.setHandData(steerX, 2);
-      if (!game.started) {
-        const s = stateMachine.get();
-        if (s === 'landing') return;
-        if (s === 'menu') return;
-        startCountdown(startGame);
-      }
-    }
-    // Gyroscope layer
-    else if (
-      inputManager.gyroscopeMode &&
-      !inputManager.touch.active &&
-      !inputManager.keys.left &&
-      !inputManager.keys.right
-    ) {
-      const gyroCenterX = 0.5 + inputManager.gyroTilt * 0.4;
-      const gyroHands = inputManager.keys.up ? 2 : 0;
-      game.setHandData(gyroCenterX, gyroHands);
+    // Unified input frame (phone → auto-accelerate → gyro → base priority).
+    // The base layer holds hand/keyboard/touch values published by callbacks.
+    const frame = inputManager.frame(game.steerCenterX);
+    game.setHandData(centerFromSteer(frame.steer), handsFromThrottle(frame.throttle));
+
+    // Auto-accelerate countdown start (matches the legacy loop layer; skips
+    // landing/menu, and never halts the loop on menu screens).
+    if (inputManager.lastLayer === 'auto' && !game.started) {
+      const s = stateMachine.get();
+      if (s !== 'idle') startCountdown(startGame);
     }
 
     game.update();
@@ -742,15 +761,13 @@ function gameLoop(): void {
 
     // Screen state derived from game phase
     const s = stateMachine.get();
-    let desired: AppState;
-    if (s === 'landing') {
-      desired = 'landing';
+    let desired: GamePhase;
+    if (s === 'idle') {
+      desired = 'idle';
     } else if (state.started && !state.gameOver) {
       desired = 'racing';
     } else if (state.gameOver) {
       desired = 'gameover';
-    } else if (s === 'menu' || s === 'howtoplay' || s === 'settings') {
-      desired = s;
     } else {
       desired = 'ready';
     }
@@ -803,7 +820,7 @@ function gameLoop(): void {
 
     // ─── Multiplayer tick ────────────────────────────────────────────
     if (
-      currentModeId === 'multiplayer' &&
+      GAME_MODES[currentModeId].features.multiplayer &&
       activeNetwork &&
       remotePlayers &&
       state.started &&
@@ -874,21 +891,32 @@ function applyTouchState(): void {
   if (!game) return;
   const touch = inputManager.touch;
   if (touch.up) {
-    let steerX = 0.5;
-    if (touch.left) steerX = 0;
-    else if (touch.right) steerX = 1;
-    game.setHandData(steerX, 2);
+    inputManager.setBase('touch', {
+      steer: touch.left ? -1 : touch.right ? 1 : 0,
+      throttle: 1,
+      brake: 0,
+      boostButton: false,
+    });
     if (!game.started || game.gameOver) {
       const s = stateMachine.get();
-      if (s === 'landing') return;
-      if (s === 'menu') return;
+      if (s === 'idle') return;
       cancelCountdown();
       startCountdown(startGame);
     }
   } else if (touch.left) {
-    game.setHandData(0, inputManager.autoAccelerate ? 2 : 1);
+    inputManager.setBase('touch', {
+      steer: -1,
+      throttle: inputManager.autoAccelerate ? 1 : 0.5,
+      brake: 0,
+      boostButton: false,
+    });
   } else if (touch.right) {
-    game.setHandData(1, inputManager.autoAccelerate ? 2 : 1);
+    inputManager.setBase('touch', {
+      steer: 1,
+      throttle: inputManager.autoAccelerate ? 1 : 0.5,
+      brake: 0,
+      boostButton: false,
+    });
   }
 }
 
@@ -1058,6 +1086,7 @@ async function init(): Promise<void> {
     cancelCountdown();
     replayRuntime.arm(trackId, modeId);
     currentModeId = modeId;
+    inputManager.setModeConfig(GAME_MODES[modeId]);
     activeNetwork = network ?? null;
     startCountdown(startGame);
     notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
@@ -1070,6 +1099,7 @@ async function init(): Promise<void> {
   buildFlow(nav, {
     getBestScore: () => saveManager.bestScore,
     settings: settingsApi,
+    phone: phoneSource,
     garage: new (await import('./screens/GarageScreen')).GarageScreen(),
     howToPlay: new (await import('./screens/HowToPlayScreen')).HowToPlayScreen(),
     startRace: (trackId, modeId, network) => startRace(trackId, modeId, network),
@@ -1163,17 +1193,19 @@ async function init(): Promise<void> {
   resultsMenu.addEventListener('click', () => {
     victoryCeremony.stop();
     cancelCountdown();
-    stateMachine.set('landing');
+    stateMachine.set('idle');
     replayRuntime.abort();
+    inputManager.setModeConfig(null);
     showMenu();
     void nav.reset('menu');
   });
 
   navTitle.addEventListener('click', () => {
     victoryCeremony.stop();
-    stateMachine.set('landing');
+    stateMachine.set('idle');
     if (game) game.setGameOver();
     replayRuntime.abort();
+    inputManager.setModeConfig(null);
     showMenu();
     void nav.reset('menu');
   });

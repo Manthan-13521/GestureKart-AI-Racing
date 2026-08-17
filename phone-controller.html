@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Virtual Steering — Phone Wheel</title>
+    <link rel="stylesheet" href="/src/controller/controller.css" />
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  </head>
+  <body>
+    <main class="ctl">
+      <header class="ctl-header">
+        <h1>STEERING WHEEL</h1>
+        <p class="ctl-status" id="ctl-status">Checking connection…</p>
+      </header>
+
+      <!-- Steering visualization -->
+      <section class="ctl-wheel-wrap" aria-hidden="true">
+        <div class="ctl-wheel" id="ctl-wheel">
+          <span class="ctl-grip ctl-grip--top"></span>
+          <span class="ctl-grip ctl-grip--left"></span>
+          <span class="ctl-grip ctl-grip--right"></span>
+          <span class="ctl-hub"></span>
+          <span class="ctl-spoke ctl-spoke--up"></span>
+          <span class="ctl-spoke ctl-spoke--down"></span>
+        </div>
+        <div class="ctl-wheel-shadow"></div>
+        <div class="ctl-dir" id="ctl-dir">CENTER</div>
+      </section>
+
+      <!-- Connection -->
+      <section class="ctl-card">
+        <label class="ctl-room" for="ctl-code">ROOM CODE</label>
+        <input
+          class="ctl-code-input"
+          id="ctl-code"
+          inputmode="text"
+          autocapitalize="characters"
+          autocomplete="off"
+          maxlength="6"
+          placeholder="e.g. 7K4P9Q"
+        />
+        <button class="ctl-btn ctl-btn--primary" id="ctl-connect">ALLOW SENSOR + CONNECT</button>
+        <p class="ctl-msg" id="ctl-msg"></p>
+      </section>
+
+      <!-- Calibration + sensitivity -->
+      <section class="ctl-card">
+        <div class="ctl-row">
+          <button class="ctl-btn" id="ctl-calibrate">CALIBRATE CENTER</button>
+          <span class="ctl-hint">Hold wheel straight, then tap</span>
+        </div>
+        <div class="ctl-row ctl-row--slider">
+          <label for="ctl-sensitivity">SENSITIVITY</label>
+          <input type="range" id="ctl-sensitivity" min="50" max="200" value="100" />
+          <span id="ctl-sensitivity-val">100%</span>
+        </div>
+      </section>
+
+      <button class="ctl-btn ctl-btn--danger" id="ctl-disconnect" hidden>DISCONNECT</button>
+    </main>
+    <script type="module" src="/src/controller/main.ts"></script>
+  </body>
+</html>

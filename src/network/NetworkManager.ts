@@ -48,7 +48,7 @@ export class NetworkManager {
     });
   }
 
-  public async joinLobby(hostId: string): Promise<string> {
+  public async joinLobby(hostId: string, connectOptions?: unknown): Promise<string> {
     return new Promise((resolve, reject) => {
       this.isHost = false;
       this.hostId = hostId;
@@ -56,7 +56,7 @@ export class NetworkManager {
 
       this.peer.on('open', (myId) => {
         if (!this.peer) return;
-        const conn = this.peer.connect(hostId);
+        const conn = this.peer.connect(hostId, connectOptions);
         conn.on('open', () => {
           this.setupConnection(conn);
           resolve(myId as string);
