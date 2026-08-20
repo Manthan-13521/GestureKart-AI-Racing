@@ -13,6 +13,33 @@ export interface TournamentState {
   active: boolean;
 }
 
+const TOURNAMENT_VERSION = 1;
+
+const DIVISIONS: DivisionId[] = ['rookie', 'pro', 'elite', 'champion'];
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function sanitizeState(raw: unknown): TournamentState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  if (!DIVISIONS.includes(s.division as DivisionId)) return null;
+  if (!isFiniteNum(s.currentRace) || s.currentRace < 0 || s.currentRace > 2) return null;
+  if (!isFiniteNum(s.points) || s.points < 0) return null;
+  if (!Array.isArray(s.history) || !s.history.every((p) => isFiniteNum(p) && p >= 1 && p <= 6)) {
+    return null;
+  }
+  if (typeof s.active !== 'boolean') return null;
+  return {
+    division: s.division as DivisionId,
+    currentRace: s.currentRace,
+    points: s.points,
+    history: s.history,
+    active: s.active,
+  };
+}
+
 export class TournamentManager {
   private state: TournamentState = {
     division: 'rookie',
@@ -29,18 +56,29 @@ export class TournamentManager {
   }
 
   private load(): void {
-    const raw = localStorage.getItem(this.storageKey);
-    if (raw) {
-      try {
-        this.state = JSON.parse(raw);
-      } catch {
+    try {
+      const raw = localStorage.getItem(this.storageKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { version?: number } & Record<string, unknown>;
+      // P12: fail closed on unknown future schema versions and on any
+      // malformed shape (division, race index, points, history, active).
+      const state = sanitizeState(parsed);
+      if (!state || (isFiniteNum(parsed.version) && parsed.version > TOURNAMENT_VERSION)) {
         this.reset();
+        return;
       }
+      this.state = state;
+    } catch {
+      this.reset();
     }
   }
 
   private save(): void {
-    localStorage.setItem(this.storageKey, JSON.stringify(this.state));
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify({ version: TOURNAMENT_VERSION, ...this.state }));
+    } catch {
+      // storage unavailable (private mode / quota) — keep in-memory state
+    }
   }
 
   public get activeState(): TournamentState {

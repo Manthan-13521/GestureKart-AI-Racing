@@ -7,11 +7,50 @@ import { ParticlePool } from '../graphics/ParticlePool';
 import { WeatherSystem } from '../graphics/WeatherSystem';
 import { PostProcessor } from '../graphics/PostProcessor';
 import { profileManager } from '../managers/ProfileManager';
+import { skinHex, neonHex } from '../progression/ContentCatalog';
+import { mulberry32 } from '../ai/AIIdentity';
+import {
+  ComboSystem,
+  LaneSwitchTracker,
+  isNearMiss,
+  nearMissReward,
+  BoostController,
+  BOOST_DURATION,
+  maxSpeedFor,
+  spawnIntervalFor,
+  CollisionJuice,
+} from './p4';
 
 const SEG_LEN = 24;
+
+/**
+ * Recursively dispose a removed object's geometries and materials so that
+ * recycled cars/pickups never leak GPU resources (P12 release hardening).
+ */
+function disposeObject(obj: THREE.Object3D): void {
+  obj.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    if (mesh.isMesh) {
+      if (mesh.geometry) mesh.geometry.dispose();
+      const material = mesh.material;
+      if (Array.isArray(material)) {
+        for (const m of material) m.dispose();
+      } else if (material) {
+        material.dispose();
+      }
+    }
+  });
+}
+
+/** '#rrggbb' → THREE color int (safe fallback). */
+function hexColor(hex: string): number {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return 0x0e1015;
+  return parseInt(m[1], 16);
+}
 const NUM_SEG = 18;
 const ROAD_W = 10;
-const LANE_X = [-3.3, 0, 3.3];
+export const LANE_X = [-3.3, 0, 3.3];
 const TUNNEL_W = 14;
 const TUNNEL_H = 5;
 const FOV = 78;
@@ -32,6 +71,15 @@ export interface GameState {
   raceDuration: number;
   shakeIntensity: number;
   justCollided: boolean;
+  // P4
+  comboMultiplier: number;
+  comboStreak: number;
+  boostActive: boolean;
+  boostTimeLeft: number;
+  boostMaxTime: number;
+  nearMissEvent: { reward: number; multiplier: number } | null;
+  crashActive: boolean;
+  playerDistance: number;
 }
 
 export class Game {
@@ -79,6 +127,19 @@ export class Game {
 
   private _justCollided = false;
 
+  // P4: Combo, near-miss, boost, dynamic difficulty, collision juice
+  private comboSystem = new ComboSystem();
+  private laneSwitchTracker = new LaneSwitchTracker();
+  private boostController = new BoostController();
+  private collisionJuice = new CollisionJuice();
+  private pendingGameOver = false;
+  private crashActive = false;
+  private boostPickups: THREE.Group[] = [];
+  private boostPickupTimer = 0;
+  private readonly BOOST_PICKUP_INTERVAL_MIN = 8;
+  private readonly BOOST_PICKUP_INTERVAL_MAX = 20;
+  private nextBoostPickupTime = 0;
+
   private headlight1!: THREE.SpotLight;
   private headlight2!: THREE.SpotLight;
 
@@ -88,6 +149,11 @@ export class Game {
   private handSkeleton: Landmark[] = [];
   private mirrorCanvas!: HTMLCanvasElement;
   private mirrorCtx!: CanvasRenderingContext2D | null;
+
+  // P8.6: cosmetic materials (skin paint + neon underglow), refreshed at
+  // race start from the authoritative ProfileManager state.
+  private hoodMat!: THREE.MeshStandardMaterial;
+  private neonMat!: THREE.MeshBasicMaterial;
 
   private particles!: THREE.Points;
   private particlePositions!: Float32Array;
@@ -99,6 +165,11 @@ export class Game {
   public postProcessor!: PostProcessor;
 
   private baseFov = FOV;
+
+  // P9: race randomness source. Defaults to Math.random (historical
+  // behavior); setRaceSeed() swaps in the deterministic mulberry32 stream
+  // so a replay reproduces the exact traffic/pickup layout of the run.
+  private rng: () => number = Math.random;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -205,6 +276,15 @@ export class Game {
       raceDuration: RACE_DURATION,
       shakeIntensity: this.shakeIntensity,
       justCollided: this._justCollided,
+      // P4
+      comboMultiplier: this.comboSystem.multiplier,
+      comboStreak: this.comboSystem.streakCount,
+      boostActive: this.boostController.state.active,
+      boostTimeLeft: this.boostController.state.timeLeft,
+      boostMaxTime: BOOST_DURATION,
+      nearMissEvent: this._lastNearMissEvent,
+      crashActive: this.crashActive,
+      playerDistance: this._playerDistance,
     };
   }
 
@@ -248,17 +328,31 @@ export class Game {
     this._raceMode = mode;
   }
 
+  /**
+   * P9: fix the race randomness seed (traffic + boost-pickup layout).
+   * Must be called BEFORE start(); the same seed reproduces the same
+   * spawn layout. Never seeded → historical Math.random behavior.
+   */
+  setRaceSeed(seed: number): void {
+    this.rng = mulberry32(seed);
+  }
+
   /** Override the displayed race position (driven externally by RaceDirector). */
   setPosition(pos: number, total: number): void {
     this.position = pos;
     this.totalCars = total;
   }
 
-  start(): void {
-    this._started = true;
+  /**
+   * Reset the world to a clean pre-race state WITHOUT starting the clock.
+   * Used by the race-start pipeline so the staging/countdown renders a
+   * deterministic grid and the vehicle is anchored before GO.
+   */
+  prepareRace(): void {
     this._gameOver = false;
+    this._started = false;
     this.score = 0;
-    this._speed = this.baseSpeed;
+    this._speed = 0;
     this.raceTime = 0;
     this.lap = 1;
     this.position = this._raceMode === 'ai-race' ? 6 : 2;
@@ -268,10 +362,47 @@ export class Game {
     this.smoothSteer.reset(0);
     this.shakeIntensity = 0;
     this._justCollided = false;
+    this.centerX = 0.5;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
-    for (const c of this.obstacles) this.scene.remove(c);
+    for (const c of this.obstacles) {
+      disposeObject(c);
+      this.scene.remove(c);
+    }
     this.obstacles = [];
+
+    // P4: reset survival-specific state
+    this.comboSystem.reset();
+    this.laneSwitchTracker.reset();
+    this.boostController.reset();
+    this.collisionJuice.reset();
+    this.pendingGameOver = false;
+    this.crashActive = false;
+    // Clear boost pickups
+    for (const p of this.boostPickups) {
+      disposeObject(p);
+      this.scene.remove(p);
+    }
+    this.boostPickups = [];
+    this.boostPickupTimer = 0;
+    this.nextBoostPickupTime = 0;
+    // P8.6: re-apply equipped cosmetics at every race start (event-driven,
+    // never per-frame). Pure presentation — physics is untouched.
+    this.applyCosmetics();
+  }
+
+  /** Refresh paint + neon from the authoritative profile (P8.6). */
+  applyCosmetics(): void {
+    if (!this.hoodMat || !this.neonMat) return;
+    const state = profileManager.currentState;
+    this.hoodMat.color.setHex(hexColor(skinHex(state.selectedSkin)));
+    this.neonMat.color.setHex(hexColor(neonHex(state.selectedNeon)));
+  }
+
+  start(): void {
+    this.prepareRace();
+    this._started = true;
+    this._speed = this.baseSpeed;
     // In AI race mode, no random traffic is spawned — the AI runtime owns the grid.
     if (this._raceMode !== 'ai-race') {
       this.spawnCar();
@@ -411,23 +542,31 @@ export class Game {
 
     const bodyMat = new THREE.MeshBasicMaterial({ color: 0x0c0e12 });
 
+    // P8.6: cosmetic paint comes from the authoritative ContentCatalog via
+    // the validated profile state (no duplicated id/hex tables in Game.ts).
     const state = profileManager.currentState;
-    const skinMap: Record<string, number> = {
-      default: 0xcc2222,
-      blue: 0x1188cc,
-      green: 0x00aa88,
-      purple: 0x8833cc,
-      gold: 0xccaa33,
-    };
-    const skinColor = skinMap[state.selectedSkin] || 0x0e1015;
+    this.hoodMat = new THREE.MeshStandardMaterial({
+      color: hexColor(skinHex(state.selectedSkin)),
+      roughness: 0.3,
+      metalness: 0.6,
+    });
 
-    const hood = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 0.1, 2.2),
-      new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.3, metalness: 0.6 })
-    );
+    const hood = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 2.2), this.hoodMat);
     hood.position.set(0, 0.05, -1.6);
     hood.receiveShadow = true;
     g.add(hood);
+
+    // P8.6: neon underglow — a soft emissive plane under the chassis in the
+    // equipped neon color. Purely visual; never touches physics.
+    this.neonMat = new THREE.MeshBasicMaterial({
+      color: hexColor(neonHex(state.selectedNeon)),
+      transparent: true,
+      opacity: 0.35,
+    });
+    const underglow = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 3.6), this.neonMat);
+    underglow.rotation.x = -Math.PI / 2;
+    underglow.position.set(0, 0.02, -0.9);
+    g.add(underglow);
 
     const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.35, 0.5), bodyMat);
     dash.position.set(0, 0.48, -0.85);
@@ -636,7 +775,8 @@ export class Game {
 
     const g = new THREE.Group();
     const colors = [0xcc2222, 0xcc8800, 0x8833cc, 0x00aa88, 0xcc5500, 0x1188cc, 0xcccccc, 0x33aa33];
-    const color = colors[Math.floor(Math.random() * colors.length)];
+    // Seeded stream (P9): traffic color is part of the reproducible layout.
+    const color = colors[Math.floor(this.rng() * colors.length)];
 
     const bodyMat = new THREE.MeshStandardMaterial({
       color,
@@ -670,39 +810,100 @@ export class Game {
       g.add(hl);
     }
 
-    const lane = Math.floor(Math.random() * 3);
-    g.position.set(LANE_X[lane], 0, -80 - Math.random() * 50);
+    const lane = Math.floor(this.rng() * 3);
+    g.position.set(LANE_X[lane], 0, -80 - this.rng() * 50);
     this.scene.add(g);
     this.obstacles.push(g);
   }
 
   update(): void {
-    if (!this._started || this._gameOver) return;
+    if (!this._started) return;
 
     const now = performance.now();
     const dt = Math.min((now - this.lastFrameTime) / 16.67, 3);
     this.lastFrameTime = now;
-    const delta = dt / 60;
+    const realDelta = dt / 60; // real time for timers
+
+    // P4: Crash state machine (hit-stop + slow-mo) for survival collisions
+    if (this.crashActive) {
+      const stillCrashing = this.collisionJuice.tick(realDelta);
+      if (!stillCrashing && this.collisionJuice.consumeDone()) {
+        this._gameOver = true;
+        this.crashActive = false;
+      }
+      // During crash, still render but freeze/slow world
+      this.updateCamera(dt);
+      return; // Skip game logic during crash
+    }
+
+    // Delta with time scale (for slow-mo if ever active outside crash)
+    const worldDelta = realDelta;
+
+    // P4: Boost controller tick
+    this.boostController.tick(realDelta);
+    const boostState = this.boostController.state;
+
+    // P4: Dynamic difficulty for survival mode
+    const isSurvival = this._raceMode === 'survival';
+    const currentMaxSpeed = isSurvival ? maxSpeedFor(this._playerDistance) : this.maxSpeed;
+    const currentSpawnInterval = isSurvival
+      ? spawnIntervalFor(this.raceTime, this._playerDistance)
+      : this.spawnInterval;
 
     if (this._handsDetected >= 2) {
-      this._speed = Math.min(this.maxSpeed, this._speed + 0.004 * dt);
-      this.score += this._speed * 2 * dt;
-      this.raceTime += delta;
+      // P4: Apply boost speed bonus
+      this._speed = Math.min(
+        currentMaxSpeed,
+        this._speed + 0.004 * dt + (boostState.active ? boostState.speedBonus * 0.002 * dt : 0)
+      );
+
+      // P4: Score with combo multiplier
+      const comboMultiplier = this.comboSystem.multiplier;
+      this.score += this._speed * 2 * dt * comboMultiplier;
+      this.raceTime += worldDelta;
     } else {
       this._speed = Math.max(0.05, this._speed - 0.007 * dt);
     }
 
     // Accumulate player distance for AI race ranking
-    this._playerDistance += this._speed * delta * 60 * 0.2;
+    this._playerDistance += this._speed * worldDelta * 60 * 0.2;
 
     if (this.raceTime >= RACE_DURATION) {
       this._gameOver = true;
     }
 
-    this.position = Math.max(
-      1,
-      Math.min(this.totalCars, Math.floor((this.obstacles.length / 6) * (this.totalCars - 1)) + 2)
-    );
+    // P7.3: obstacle-based position is a survival-mode HUD heuristic. In AI
+    // races the RaceDirector is the authoritative rank source (setPosition)
+    // and must not be clobbered every frame — previously the legacy HUD
+    // always displayed P2 while the AI HUD showed the true standing.
+    if (this._raceMode === 'survival') {
+      this.position = Math.max(
+        1,
+        Math.min(this.totalCars, Math.floor((this.obstacles.length / 6) * (this.totalCars - 1)) + 2)
+      );
+    }
+
+    this.spawnTimer += dt;
+    const interval = Math.max(18, currentSpawnInterval - this._speed * 30);
+    if (
+      this.spawnTimer >= interval &&
+      this._handsDetected >= 2 &&
+      this.raceTime > 3 &&
+      this.gesturesEnabled
+    ) {
+      this.spawnTimer = 0;
+      this.spawnCar();
+    }
+
+    // P4: Boost pickup spawning (survival only, separate from traffic)
+    if (isSurvival && this._handsDetected >= 2 && this.gesturesEnabled) {
+      this.maybeSpawnBoostPickup(worldDelta);
+    }
+
+    // P4: Lane switch tracking for combo (survival only)
+    if (isSurvival) {
+      this.comboSystem.updateLaneSwitch(this._cameraX);
+    }
 
     const rawSteer = (this.centerX - 0.5) * 2 * this.sensitivity;
     const deadZone = 0.02;
@@ -726,7 +927,7 @@ export class Game {
 
     this.updateCamera(dt);
 
-    const moveAmount = this._speed * dt;
+    const moveAmount = this._speed * worldDelta;
     for (const seg of this.segments) {
       seg.position.z += moveAmount;
       if (seg.position.z > SEG_LEN) {
@@ -734,54 +935,188 @@ export class Game {
       }
     }
 
-    this.spawnTimer += dt;
-    const interval = Math.max(18, this.spawnInterval - this._speed * 30);
-    if (
-      this.spawnTimer >= interval &&
-      this._handsDetected >= 2 &&
-      this.raceTime > 3 &&
-      this.gesturesEnabled
-    ) {
-      this.spawnTimer = 0;
-      this.spawnCar();
+    // P4: Boost pickup spawning (survival only, separate from traffic)
+    if (isSurvival && this._handsDetected >= 2 && this.gesturesEnabled) {
+      this.maybeSpawnBoostPickup(worldDelta);
     }
 
+    // Obstacle processing with near-miss detection
+    let nearMissEvent: { reward: number; multiplier: number } | null = null;
     for (let i = this.obstacles.length - 1; i >= 0; i--) {
       const car = this.obstacles[i];
+      const prevZ = car.position.z;
       car.position.z += moveAmount;
 
+      // Near-miss tracking: track min lateral clearance during pass
+      const dx = Math.abs(this._cameraX - car.position.x);
+      const state = car.userData as {
+        minDx?: number;
+        passed?: boolean;
+        nearMissed?: boolean;
+        collided?: boolean;
+      };
+      if (!state.minDx || dx < state.minDx) state.minDx = dx;
+
       if (car.position.z > 12) {
+        disposeObject(car);
         this.scene.remove(car);
         this.obstacles.splice(i, 1);
         continue;
       }
 
-      const dx = Math.abs(this._cameraX - car.position.x);
+      // Near-miss: obstacle passes player plane (z crosses 0)
+      if (!state.passed && prevZ <= 0 && car.position.z > 0) {
+        state.passed = true;
+        if (!state.collided && state.minDx !== undefined && isNearMiss(state.minDx)) {
+          const multiplier = this.comboSystem.multiplier;
+          const reward = nearMissReward(multiplier);
+          this.comboSystem.registerNearMiss();
+          this.score += reward;
+          nearMissEvent = { reward, multiplier };
+        }
+      }
+
+      // Collision check
       const dz = Math.abs(car.position.z);
       if (dx < 1.5 && dz < 2.5) {
-        this._gameOver = true;
-        this._justCollided = true;
-        this.shakeIntensity = 2.8;
-        this.camera.fov = this.baseFov + 12;
-        this.camera.updateProjectionMatrix();
+        state.collided = true;
+        if (isSurvival) {
+          if (boostState.invulnerable) {
+            // Invulnerable: skip collision effects, continue
+            continue;
+          }
+          // Start crash sequence (hit-stop + slow-mo) instead of instant gameOver
+          this._justCollided = true;
+          this.shakeIntensity = 2.8;
+          this.camera.fov = this.baseFov + 12;
+          this.camera.updateProjectionMatrix();
+          this.collisionJuice.activate();
+          this.crashActive = true;
+          this.pendingGameOver = true;
+          // Don't set _gameOver yet; crash sequence will set it after slow-mo
+        } else {
+          // Non-survival: instant gameOver as before
+          this._gameOver = true;
+          this._justCollided = true;
+          this.shakeIntensity = 2.8;
+          this.camera.fov = this.baseFov + 12;
+          this.camera.updateProjectionMatrix();
+        }
       }
     }
+
+    // P4: Boost pickup processing (collection)
+    this.processBoostPickups(moveAmount, worldDelta);
 
     this.updateParticles(dt);
     this.updateMirror();
 
-    // Phase 6: GPU particle pool + weather (reuse moveAmount from above)
-    if (this._justCollided) {
+    if (this._justCollided && !this.reducedMotion) {
       this.particlePool.emitSparks(this._cameraX);
     }
-    this.particlePool.update(dt / 60, this._speed, this._cameraX, moveAmount);
-    this.weatherSystem.update(dt / 60, this._speed, moveAmount);
+    this.particlePool.update(worldDelta, this._speed, this._cameraX, moveAmount);
+    this.weatherSystem.update(worldDelta, this._speed, moveAmount);
+
+    // Store near-miss event for state (will be read by getState)
+    this._lastNearMissEvent = nearMissEvent;
+  }
+
+  // P4: Track last near-miss event for state
+  private _lastNearMissEvent: { reward: number; multiplier: number } | null = null;
+
+  private maybeSpawnBoostPickup(delta: number): void {
+    this.boostPickupTimer += delta;
+    if (this.boostPickupTimer >= this.nextBoostPickupTime) {
+      this.spawnBoostPickup();
+      this.boostPickupTimer = 0;
+      this.nextBoostPickupTime =
+        this.BOOST_PICKUP_INTERVAL_MIN +
+        this.rng() * (this.BOOST_PICKUP_INTERVAL_MAX - this.BOOST_PICKUP_INTERVAL_MIN);
+    }
+  }
+
+  private spawnBoostPickup(): void {
+    const g = new THREE.Group();
+    // Glowing torus for boost pickup - use StandardMaterial for emissive
+    const geo = new THREE.TorusGeometry(0.6, 0.15, 8, 16);
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.8,
+      emissive: 0x00ffff,
+      emissiveIntensity: 1.0,
+      roughness: 0.3,
+      metalness: 0.5,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = Math.PI / 2;
+    g.add(mesh);
+
+    // Inner pulse ring - BasicMaterial is fine
+    const ringGeo = new THREE.RingGeometry(0.4, 0.8, 16);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.4,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    g.add(ring);
+
+    const lane = Math.floor(this.rng() * 3);
+    g.position.set(LANE_X[lane], 0.5, -80 - this.rng() * 50);
+    g.userData = { type: 'boost-pickup', collected: false, lane };
+    this.scene.add(g);
+    this.boostPickups.push(g);
+  }
+
+  private processBoostPickups(moveAmount: number, _delta: number): void {
+    for (let i = this.boostPickups.length - 1; i >= 0; i--) {
+      const pickup = this.boostPickups[i];
+      pickup.position.z += moveAmount;
+
+      // Animate glow pulse
+      const time = performance.now() / 1000;
+      const pulse = Math.sin(time * 5) * 0.2 + 0.8;
+      const mesh = pickup.children[0] as THREE.Mesh;
+      if (mesh && mesh.material) {
+        (mesh.material as THREE.MeshStandardMaterial).opacity = pulse * 0.8;
+        (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = pulse;
+      }
+      const ring = pickup.children[1] as THREE.Mesh;
+      if (ring && ring.material) {
+        (ring.material as THREE.MeshBasicMaterial).opacity = pulse * 0.4;
+      }
+
+      if (pickup.position.z > 12) {
+        disposeObject(pickup);
+        this.scene.remove(pickup);
+        this.boostPickups.splice(i, 1);
+        continue;
+      }
+
+      // Collection check
+      const dx = Math.abs(this._cameraX - pickup.position.x);
+      const dz = Math.abs(pickup.position.z);
+      const state = pickup.userData as { collected: boolean; type: string };
+      if (!state.collected && dx < 1.2 && dz < 2.0) {
+        state.collected = true;
+        this.boostController.activate();
+        disposeObject(pickup);
+        this.scene.remove(pickup);
+        this.boostPickups.splice(i, 1);
+        // Visual feedback
+        if (!this.reducedMotion) this.particlePool.emitSparks(pickup.position.x);
+      }
+    }
   }
 
   public updateCamera(dt: number = 1 / 60): void {
-    const shakeX = (Math.random() - 0.5) * this.shakeIntensity * 0.8;
-    const shakeY = (Math.random() - 0.5) * this.shakeIntensity * 0.5;
-    const rollExtra = (Math.random() - 0.5) * this.shakeIntensity * 0.04;
+    const effectiveShake = this.reducedMotion ? 0 : this.shakeIntensity;
+    const shakeX = (Math.random() - 0.5) * effectiveShake * 0.8;
+    const shakeY = (Math.random() - 0.5) * effectiveShake * 0.5;
+    const rollExtra = (Math.random() - 0.5) * effectiveShake * 0.04;
 
     if (this.cameraMode === 'chase') {
       this.camera.position.x = this._cameraX + shakeX;
@@ -825,6 +1160,24 @@ export class Game {
 
   public render(): void {
     this.postProcessor.render(this.scene, this.camera);
+  }
+
+  /** Reduced-motion gate: suppresses camera shake and particle bursts. */
+  public reducedMotion = false;
+
+  /** Apply a resolved quality config (GDD §11.2/§15). */
+  setQuality(config: {
+    pixelRatio: number;
+    post: boolean;
+    shadows: boolean;
+    weather: boolean;
+    particleDensity: number;
+  }): void {
+    this.renderer.setPixelRatio(config.pixelRatio);
+    this.postProcessor.enabled = config.post;
+    this.renderer.shadowMap.enabled = config.shadows;
+    this.weatherSystem.enabled = config.weather;
+    this.particlePool.emissionScale = config.particleDensity;
   }
 
   resize(w: number, h: number): void {
