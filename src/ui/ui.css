@@ -514,6 +514,13 @@ body {
   flex-wrap: wrap;
   gap: 8px;
 }
+.mode-select-hint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text3);
+  margin-top: 2px;
+}
 .control-chip {
   display: inline-flex;
   align-items: center;

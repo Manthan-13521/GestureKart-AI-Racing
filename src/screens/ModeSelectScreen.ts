@@ -64,6 +64,7 @@ export class ModeSelectScreen extends Screen {
   /** Mode whose controls are currently highlighted (hover/focus preview). */
   private previewMode: ModeId | null = null;
   private chipEls: HTMLButtonElement[] = [];
+  private startBtn: Button | null = null;
 
   constructor() {
     super('mode-select');
@@ -119,10 +120,11 @@ export class ModeSelectScreen extends Screen {
           onClick: () => {
             for (const other of cards) other.setSelected(false);
             card.setSelected(true);
+            this.selected = mode.id;
             this.controlMethod = clampControlMethod(this.controlMethod, mode);
             this.syncChipAvailability(mode.id);
             this.selectMethod(this.controlMethod);
-            this.onSelect?.(mode.id);
+            this.syncStart();
           },
         });
 
@@ -202,6 +204,7 @@ export class ModeSelectScreen extends Screen {
       }
       chip.addEventListener('click', () => {
         if (chip.disabled) return;
+        if (this.selected && !isSourceAllowed(this.selected, m.source)) return;
         this.selectMethod(m.id);
       });
       if (this.controlMethod === m.id) chip.classList.add('active');
@@ -209,6 +212,11 @@ export class ModeSelectScreen extends Screen {
       return chip;
     });
     controlWrap.appendChild(chips);
+
+    const hint = document.createElement('div');
+    hint.className = 'mode-select-hint';
+    hint.setAttribute('data-live', 'mode-selection');
+    controlWrap.appendChild(hint);
     wrap.appendChild(controlWrap);
 
     // Footer
@@ -217,12 +225,22 @@ export class ModeSelectScreen extends Screen {
     const backBtn = new Button('Back', { variant: 'ghost' });
     backBtn.el.addEventListener('click', () => this.onBack?.());
     footer.appendChild(backBtn.el);
+    const startBtn = new Button('Start Race', { variant: 'primary', size: 'lg' });
+    startBtn.el.classList.add('mode-select-start');
+    startBtn.el.addEventListener('click', () => {
+      if (!this.selected) return;
+      SoundHooks.confirm();
+      this.onSelect?.(this.selected);
+    });
+    footer.appendChild(startBtn.el);
+    this.startBtn = startBtn;
     wrap.appendChild(footer);
 
     this.el.appendChild(wrap);
 
     // Sync initial chip availability
     this.syncChipAvailability(selected);
+    this.syncStart();
 
     // Entrance animations
     void AnimationSystem.play(header, 'fade-in');
@@ -245,6 +263,24 @@ export class ModeSelectScreen extends Screen {
       SoundHooks.confirm();
       this.setStatusMessage(`${m.replace(/-/g, ' ')} selected`);
     }
+    this.updateHint();
+  }
+
+  /** Enables/disables the Start button once a mode is selected. */
+  private syncStart(): void {
+    if (!this.startBtn) return;
+    this.startBtn.disabled = this.selected === null;
+    this.updateHint();
+  }
+
+  /** Live hint summarizing the current mode + control-method choice. */
+  private updateHint(): void {
+    const hint = this.el.querySelector('[data-live="mode-selection"]');
+    if (!hint) return;
+    hint.textContent =
+      this.selected === null
+        ? 'Select a mode to begin.'
+        : `${GAME_MODES[this.selected].name} · ${this.controlMethod.replace(/-/g, ' ')}`;
   }
 
   /** Live-region text for accessible confirmation (no-op when unsupported). */
