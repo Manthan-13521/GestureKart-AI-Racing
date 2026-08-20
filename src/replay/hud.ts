@@ -30,8 +30,11 @@ export class GhostHud {
   private nowEl: HTMLElement | null;
   private sectorEls: (HTMLElement | null)[];
   private last: Required<GhostHudState> = { ...DEFAULTS };
+  /** Presentation hook: fired when the |delta| crosses a whole second or ahead/behind flips. */
+  private onDeltaTick: ((ahead: boolean) => void) | null = null;
 
-  constructor(rootId = 'ghost-hud') {
+  constructor(rootId = 'ghost-hud', onDeltaTick?: (ahead: boolean) => void) {
+    this.onDeltaTick = onDeltaTick ?? null;
     this.root = document.getElementById(rootId);
     this.deltaEl = this.byId('ghost-delta');
     this.stateEl = this.byId('ghost-state');
@@ -49,23 +52,31 @@ export class GhostHud {
   }
 
   reset(best: number): void {
-    this.last = { ...DEFAULTS, best };
-    this.update(this.last);
+    this.update({ ...DEFAULTS, best }, true);
   }
 
-  update(state: Partial<GhostHudState>): void {
+  update(state: Partial<GhostHudState>, force = false): void {
     const next = { ...this.last, ...state };
-    if (next.delta !== this.last.delta) {
+    // Ghost delta tick: fire when the whole-second boundary or ahead/behind
+    // state flips (GDD §12.2 ghost delta tick). Presentation-only.
+    if (this.onDeltaTick) {
+      const prevSec = Math.floor(Math.abs(this.last.delta));
+      const nextSec = Math.floor(Math.abs(next.delta));
+      if (next.ahead !== this.last.ahead || (nextSec !== prevSec && next.delta !== this.last.delta)) {
+        this.onDeltaTick(next.ahead);
+      }
+    }
+    if (force || next.delta !== this.last.delta) {
       if (this.deltaEl) {
         this.deltaEl.textContent = formatDelta(next.delta);
         this.deltaEl.classList.toggle('ahead', next.ahead);
       }
     }
-    if (next.ahead !== this.last.ahead) {
+    if (force || next.ahead !== this.last.ahead) {
       if (this.stateEl) this.stateEl.textContent = next.ahead ? 'AHEAD' : 'BEHIND';
     }
-    if (next.best !== this.last.best && this.bestEl) {
-      this.bestEl.textContent = formatClock(next.best);
+    if (force || (next.best !== this.last.best && this.bestEl)) {
+      if (this.bestEl) this.bestEl.textContent = formatClock(next.best);
     }
     if (next.now !== this.last.now && this.nowEl) {
       this.nowEl.textContent = formatClock(next.now);
@@ -88,5 +99,6 @@ export class GhostHud {
     this.bestEl = null;
     this.nowEl = null;
     this.sectorEls = [null, null, null];
+    this.onDeltaTick = null;
   }
 }

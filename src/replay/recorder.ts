@@ -119,7 +119,7 @@ export class ReplayRecorder {
   private emit(t: number, x: number, speed: number): void {
     if (this.times.length > 0) {
       const prevT = this.times[this.times.length - 1];
-      const dt = (t - prevT) / REPLAY_TICKS_PER_SEC;
+      const dt = t - prevT / REPLAY_TICKS_PER_SEC;
       const avgSpeed = (this.lastEmitSpeed + speed) / 2;
       this.dist += avgSpeed * dt;
     }
@@ -140,9 +140,9 @@ export function recordingToReplayData(rec: ReplayRecording): ReplayData {
   dist[0] = 0;
   for (let i = 0; i < n; i++) {
     const f = rec.frames[i];
-    times[i] = Math.round(f.t * REPLAY_TICKS_PER_SEC);
-    xs[i] = Math.round((f.x + 2) * 100);
-    speeds[i] = Math.max(0, Math.min(127, Math.round(f.speed * 20)));
+    times[i] = f.t;
+    xs[i] = f.x;
+    speeds[i] = f.speed;
     if (i > 0) {
       const dt = (times[i] - times[i - 1]) / REPLAY_TICKS_PER_SEC;
       const avg = (speeds[i - 1] + speeds[i]) / 2 / 20;

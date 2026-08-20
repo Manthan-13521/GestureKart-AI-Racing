@@ -76,12 +76,11 @@ export class ReplayRuntime {
     this.outcome = { ...NO_OUTCOME };
     this.hud?.setVisible(false);
 
-    if (GAME_MODES[mode as ModeId].features.ghost) {
+    if (GAME_MODES[mode as ModeId]?.features?.ghost) {
       const best = this.store.getBest(track, mode);
       if (best && best.version === REPLAY_VERSION) {
         this.player = new ReplayPlayer(best);
         this.ghost.build();
-        this.ghost.visible = true;
         this.hud?.reset(best.duration);
         this.hud?.setVisible(true);
         this.onNotice?.(`Ghost loaded — best ${formatDuration(best.duration)}`);
@@ -105,6 +104,9 @@ export class ReplayRuntime {
 
     this.recorder.pump(raceTime, x, speed);
 
+    // Ghost playback and the duel HUD only advance once the race is running
+    // (recorder begins at GO). Pre-GO frames must not move or show the ghost.
+    if (!this.recorder.isActive) return;
     if (!this.player) return;
     const ghost = this.player.sample(raceTime);
     const playerDist = this.recorder.distance;
@@ -158,9 +160,11 @@ export class ReplayRuntime {
   /** Called when a race is quit mid-run: nothing is persisted. */
   abort(): void {
     this.recorder.abort();
+    this.player = null;
     this.ghost.visible = false;
     this.hud?.setVisible(false);
     this.sectorTimes = [null, null, null];
+    this.outcome = { ...NO_OUTCOME };
   }
 
   dispose(): void {

@@ -178,6 +178,7 @@ export class GhostRenderer {
     if (!this.built) return;
     const start = performance.now();
     const step = (): void => {
+      if (!this.built) return;
       const f = Math.min(1, (performance.now() - start) / (duration * 1000));
       const alpha = Math.max(0, 1 - f);
       this.bodyMat.opacity *= alpha;

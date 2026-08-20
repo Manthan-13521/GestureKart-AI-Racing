@@ -42,7 +42,8 @@ export class ReplayStore {
   }
 
   hasBest(track: string, mode: string): boolean {
-    return this.doc.entries[this.keyFor(track, mode)]?.best !== null;
+    const best = this.doc.entries[this.keyFor(track, mode)]?.best;
+    return best !== null && best !== undefined;
   }
 
   /** Score of the stored best run for track+mode, or null when none. */
@@ -145,6 +146,7 @@ function isValidRun(run: StoredRun | null | undefined): run is StoredRun {
     run.data.length > 0 &&
     typeof run.score === 'number' &&
     Number.isFinite(run.score) &&
+    run.score >= 0 &&
     typeof run.duration === 'number' &&
     Number.isFinite(run.duration) &&
     typeof run.date === 'number'

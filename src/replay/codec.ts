@@ -10,7 +10,8 @@ import {
   type ReplayData,
 } from './types';
 
-const HEADER_FIXED = 4 + 1 + 1 + 1 + 1 + 1 + 4 + 2 + 4 + 4 + 2;
+// magic(4) + ver(1) + rate(1) + trackLen(1) + modeLen(1) + score(4) + duration(2) + sec0(4) + sec1(4) + count(2)
+const HEADER_FIXED = 4 + 1 + 1 + 1 + 1 + 4 + 2 + 4 + 4 + 2;
 const FRAME_BYTES = 5;
 
 export interface EncodeSource {
