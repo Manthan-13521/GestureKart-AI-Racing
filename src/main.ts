@@ -1076,30 +1076,24 @@ function onKeysChanged(newKeys: GameKeys): void {
   }
 
   if (game) {
-    if (newKeys.up) {
-      inputManager.setBase('keyboard', {
-        steer: (game.steerCenterX - 0.5) * 2,
-        throttle: 1,
-        brake: 0,
-        boostButton: false,
-      });
-    } else if (newKeys.left || newKeys.right) {
-      inputManager.setBase('keyboard', {
-        steer: newKeys.left ? -1 : 1,
-        throttle: inputManager.autoAccelerate ? 1 : 0.5,
-        brake: 0,
-        boostButton: false,
-      });
-    } else {
-      // Full release: publish neutral so no stale throttle/steer lingers
-      // in the base layer after the keys are up.
-      inputManager.setBase('keyboard', {
-        steer: 0,
-        throttle: 0,
-        brake: 0,
-        boostButton: false,
-      });
-    }
+    const steer = newKeys.left ? -1 : newKeys.right ? 1 : 0;
+    const throttle = newKeys.up
+      ? 1
+      : newKeys.left || newKeys.right
+        ? inputManager.autoAccelerate
+          ? 1
+          : 0.8
+        : inputManager.autoAccelerate
+          ? 1
+          : 0;
+    const brake = newKeys.down ? 1 : 0;
+
+    inputManager.setBase('keyboard', {
+      steer,
+      throttle,
+      brake,
+      boostButton: false,
+    });
   }
 }
 
@@ -1127,12 +1121,16 @@ function onHandData(data: HandData): void {
   // base layer. The game loop applies keyboard/touch/phone overrides on top.
   handSource.update(data);
   const handFrame = handSource.read();
-  inputManager.setBase('hand', {
-    steer: handFrame.steer,
-    throttle: inputManager.autoAccelerate ? 1 : handFrame.throttle,
-    brake: 0,
-    boostButton: false,
-  });
+  const isKeyboardActive =
+    inputManager.keys.left || inputManager.keys.right || inputManager.keys.up || inputManager.keys.down;
+  if (!isKeyboardActive) {
+    inputManager.setBase('hand', {
+      steer: handFrame.steer,
+      throttle: inputManager.autoAccelerate ? 1 : handFrame.throttle,
+      brake: 0,
+      boostButton: false,
+    });
+  }
 
   if (data.landmarks.length > 0) {
     game.setHandSkeleton(data.landmarks[0]);
