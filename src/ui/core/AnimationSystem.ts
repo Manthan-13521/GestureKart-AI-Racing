@@ -7,8 +7,11 @@ export type AnimKind =
   | 'slide-in-left'
   | 'slide-in-right'
   | 'slide-in-up'
+  | 'slide-in-down'
   | 'slide-out-left'
   | 'slide-out-right'
+  | 'slide-out-up'
+  | 'slide-out-down'
   | 'scale-in'
   | 'scale-out'
   | 'blur-in'
@@ -20,6 +23,7 @@ export interface AnimOptions {
   fill?: FillMode;
   easing?: string;
   distance?: number;
+  force?: boolean; // bypass reduced-motion
 }
 
 const EASE = MotionTokens.easing.out;
@@ -27,16 +31,17 @@ const SPRING = MotionTokens.easing.spring;
 const SNAP = MotionTokens.easing.snap;
 const IN_OUT = MotionTokens.easing.inOut;
 
-/** Per-kind easing map — the shared motion language. Every animation kind
- *  has an intentional curve; nothing falls back to the browser default. */
 const EASE_BY_KIND: Record<AnimKind, string> = {
   'fade-in': EASE,
   'fade-out': EASE,
   'slide-in-left': EASE,
   'slide-in-right': EASE,
   'slide-in-up': EASE,
+  'slide-in-down': EASE,
   'slide-out-left': SNAP,
   'slide-out-right': SNAP,
+  'slide-out-up': SNAP,
+  'slide-out-down': SNAP,
   'scale-in': SPRING,
   'scale-out': SNAP,
   'blur-in': IN_OUT,
@@ -65,6 +70,11 @@ function keyframesFor(kind: AnimKind, distance: number): Keyframe[] {
         { opacity: 0, transform: `translateY(${d})` },
         { opacity: 1, transform: 'translateY(0)' },
       ];
+    case 'slide-in-down':
+      return [
+        { opacity: 0, transform: `translateY(-${d})` },
+        { opacity: 1, transform: 'translateY(0)' },
+      ];
     case 'slide-out-left':
       return [
         { opacity: 1, transform: 'translateX(0)' },
@@ -74,6 +84,16 @@ function keyframesFor(kind: AnimKind, distance: number): Keyframe[] {
       return [
         { opacity: 1, transform: 'translateX(0)' },
         { opacity: 0, transform: `translateX(${d})` },
+      ];
+    case 'slide-out-up':
+      return [
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: `translateY(-${d})` },
+      ];
+    case 'slide-out-down':
+      return [
+        { opacity: 1, transform: 'translateY(0)' },
+        { opacity: 0, transform: `translateY(${d})` },
       ];
     case 'scale-in':
       return [
@@ -99,19 +119,24 @@ function keyframesFor(kind: AnimKind, distance: number): Keyframe[] {
 }
 
 export function isMotionReduced(): boolean {
-  return ThemeManager.getInstance().reducedMotion;
+  return (
+    ThemeManager.getInstance().reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
 }
 
 function durationFor(duration: number | undefined): number {
-  return isMotionReduced() ? 0 : (duration ?? MotionTokens.duration.base);
+  if (isMotionReduced()) return 0;
+  return duration ?? MotionTokens.duration.base;
 }
 
-/**
- * Thin wrapper over the Web Animations API with the project's motion
- * vocabulary. Honours the reduced-motion preference globally.
- */
 export const AnimationSystem = {
   async play(el: HTMLElement, kind: AnimKind, opts: AnimOptions = {}): Promise<void> {
+    if (!opts.force && isMotionReduced()) {
+      // Apply end state immediately
+      const kf = keyframesFor(kind, opts.distance ?? 28);
+      Object.assign(el.style, kf[kf.length - 1]);
+      return;
+    }
     const duration = durationFor(opts.duration);
     if (duration === 0) return;
     const kf = keyframesFor(kind, opts.distance ?? 28);
@@ -125,15 +150,32 @@ export const AnimationSystem = {
     await anim.finished.catch(() => undefined);
   },
 
-  /**
-   * Plays `kind` on each element, adding `step` ms of stagger per item.
-   * `opts.delay` is ignored and replaced by the computed stagger delay.
-   */
-  async stagger(els: HTMLElement[], kind: AnimKind, opts: AnimOptions = {}, step = 60): Promise<void> {
-    await Promise.all(els.map((el, i) => this.play(el, kind, { ...opts, delay: i * step })));
+  async stagger(
+    els: HTMLElement[],
+    kind: AnimKind,
+    opts: AnimOptions = {},
+    step = MotionTokens.stagger.interval
+  ): Promise<void> {
+    const maxItems = MotionTokens.stagger.maxItems;
+    const limited = Array.from(els).slice(0, maxItems);
+    await Promise.all(limited.map((el, i) => this.play(el, kind, { ...opts, delay: i * step })));
   },
 
   wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  },
+
+  /** Create ripple effect on button click. */
+  ripple(event: MouseEvent, element: HTMLElement): void {
+    if (isMotionReduced()) return;
+    const rect = element.getBoundingClientRect();
+    const ripple = document.createElement('span');
+    ripple.className = 'btn-ripple';
+    const size = Math.max(element.clientWidth, element.clientHeight);
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${event.clientX - rect.left - size / 2}px`;
+    ripple.style.top = `${event.clientY - rect.top - size / 2}px`;
+    element.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
   },
 };

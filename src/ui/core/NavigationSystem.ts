@@ -68,6 +68,10 @@ export class NavigationSystem {
       screen.onAfterEnter();
       this.stack.push(screen);
       this.currentId = id;
+      // Focus is only delivered once the incoming screen is actually attached
+      // and visible (mount() runs before the DOM swap), so re-assert it after
+      // the transition completes. Fixes focus falling to <body> on every nav.
+      screen.refreshFocus();
     } finally {
       this.navigating = false;
     }
@@ -90,6 +94,8 @@ export class NavigationSystem {
       exiting.dispose();
       this.stack.pop();
       this.currentId = previous.screenId ?? this.currentId;
+      // Re-assert focus after the swap restores the previous screen's visibility.
+      previous.refreshFocus();
     } finally {
       this.navigating = false;
     }

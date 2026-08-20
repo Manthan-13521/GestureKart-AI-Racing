@@ -7,6 +7,8 @@ export class SoundHooks {
   private static ctx: AudioContext | null = null;
   private static unlocked = false;
   static enabled = true;
+  /** 0..1 UI gain multiplier synced to the game master volume (GDD §12.3). */
+  static volume = 1;
 
   static unlock(): void {
     if (SoundHooks.unlocked) return;
@@ -70,6 +72,20 @@ export class SoundHooks {
     setTimeout(() => SoundHooks.tone(523, 0.24, 0.05, 'sine'), 220);
   }
 
+  /** Bright rising "NEW RECORD" gold sting (GDD §12.2). */
+  static newRecord(): void {
+    SoundHooks.tone(784, 0.09, 0.06, 'sine');
+    setTimeout(() => SoundHooks.tone(988, 0.09, 0.06, 'sine'), 90);
+    setTimeout(() => SoundHooks.tone(1318, 0.16, 0.07, 'sine'), 180);
+    setTimeout(() => SoundHooks.tone(1760, 0.28, 0.05, 'sine'), 280);
+  }
+
+  /** Deny buzz for rejected actions (GDD §12.2 UI deny). */
+  static deny(): void {
+    SoundHooks.tone(160, 0.12, 0.05, 'square');
+    setTimeout(() => SoundHooks.tone(120, 0.16, 0.05, 'square'), 90);
+  }
+
   /** Attach hover/press feedback to a button element. */
   static attach(btn: HTMLElement): void {
     btn.addEventListener('pointerenter', () => SoundHooks.hover());
@@ -83,7 +99,7 @@ export class SoundHooks {
     const gain = SoundHooks.ctx.createGain();
     osc.type = type;
     osc.frequency.value = freq;
-    gain.gain.value = volume;
+    gain.gain.value = volume * SoundHooks.volume;
     osc.connect(gain);
     gain.connect(SoundHooks.ctx.destination);
     osc.start();

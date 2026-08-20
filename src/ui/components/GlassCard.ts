@@ -7,6 +7,7 @@ export interface GlassCardOptions {
   preview?: string;
   onClick?: () => void;
   focusable?: boolean;
+  selected?: boolean;
 }
 
 export interface CardMeta {
@@ -15,61 +16,81 @@ export interface CardMeta {
 }
 
 /**
- * Glassmorphism card used by track / mode selection. Optionally focusable
- * (for keyboard/gamepad grids) and interactive.
+ * Premium glassmorphism card with sheen effect, selection states, and stagger support.
  */
 export class GlassCard extends Component<HTMLElement> {
   private readonly body: HTMLElement;
+  private readonly sheenEl: HTMLElement;
 
   constructor(opts: GlassCardOptions = {}) {
-    super('article', 'glass-card');
+    super('article', 'card glass-card');
     if (opts.focusable) {
       this.el.setAttribute('tabindex', '0');
       this.el.setAttribute('role', 'button');
     }
+
+    // Sheen element
+    this.sheenEl = document.createElement('div');
+    this.sheenEl.className = 'card-sheen';
+    this.el.appendChild(this.sheenEl);
+
     if (opts.preview) {
       const preview = document.createElement('div');
-      preview.className = 'glass-card-preview';
+      preview.className = 'card-preview';
       preview.style.backgroundImage = `linear-gradient(160deg, ${opts.preview} 0%, transparent 70%)`;
       this.el.appendChild(preview);
     }
+
     this.body = document.createElement('div');
-    this.body.className = 'glass-card-body';
+    this.body.className = 'card-body';
     this.el.appendChild(this.body);
 
     if (opts.badge) {
       const badge = document.createElement('span');
-      badge.className = 'glass-card-badge';
+      badge.className = 'card-badge';
       badge.textContent = opts.badge;
       this.body.appendChild(badge);
     }
+
     if (opts.title) {
       const title = document.createElement('h3');
-      title.className = 'glass-card-title';
+      title.className = 'card-title';
       title.textContent = opts.title;
       this.body.appendChild(title);
     }
+
     if (opts.subtitle) {
       const subtitle = document.createElement('p');
-      subtitle.className = 'glass-card-subtitle';
+      subtitle.className = 'card-subtitle';
       subtitle.textContent = opts.subtitle;
       this.body.appendChild(subtitle);
     }
 
     if (opts.onClick) {
-      this.on('click', '.glass-card', opts.onClick);
-      // Activation (Enter/Space) is handled by the screen-level FocusNavigator
-      // so there is exactly one activation path per focused control.
+      this.on('click', '.card', opts.onClick);
+    }
+
+    if (opts.selected) {
+      this.setSelected(true);
+    }
+
+    // Stagger support
+    if (opts.focusable) {
+      this.el.style.setProperty('--i', '0');
     }
   }
 
   setSelected(on: boolean): void {
-    this.el.classList.toggle('is-selected', on);
+    this.el.classList.toggle('card-selected', on);
+  }
+
+  setStaggerIndex(index: number): void {
+    this.el.style.setProperty('--i', String(index));
   }
 
   addMeta(meta: CardMeta): void {
     const row = document.createElement('dl');
-    row.className = 'glass-card-meta';
+    row.className = 'card-meta';
     const dt = document.createElement('dt');
     dt.textContent = meta.label;
     const dd = document.createElement('dd');
@@ -80,7 +101,7 @@ export class GlassCard extends Component<HTMLElement> {
 
   setDescription(text: string): void {
     const desc = document.createElement('p');
-    desc.className = 'glass-card-description';
+    desc.className = 'card-description';
     desc.textContent = text;
     this.body.appendChild(desc);
   }

@@ -1,6 +1,6 @@
 import { AnimationSystem } from './AnimationSystem';
 
-export type ToastKind = 'info' | 'success' | 'error';
+export type ToastKind = 'info' | 'success' | 'error' | 'warn';
 
 export interface ToastOptions {
   kind?: ToastKind;
@@ -59,6 +59,10 @@ export class NotificationSystem {
     this.notify(title, message, { kind: 'success' });
   }
 
+  warn(title: string, message?: string): void {
+    this.notify(title, message, { kind: 'warn' });
+  }
+
   error(title: string, message?: string): void {
     this.notify(title, message, { kind: 'error' });
   }
@@ -73,9 +77,11 @@ export class NotificationSystem {
   }
 
   private render(item: ToastItem): HTMLElement {
-    const el = document.createElement('div');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = `toast toast--${item.kind}`;
     el.dataset.toastId = String(item.id);
+    el.setAttribute('aria-label', `Dismiss: ${item.title}`);
     const title = document.createElement('strong');
     title.className = 'toast-title';
     title.textContent = item.title;

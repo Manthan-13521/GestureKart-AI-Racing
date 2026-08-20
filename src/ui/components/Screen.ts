@@ -1,20 +1,18 @@
 import { Component } from '../core/Component';
 import type { TransitionKind } from '../core/TransitionSystem';
 import { FocusNavigator } from '../core/FocusNavigator';
+import { AnimationSystem, type AnimKind } from '../core/AnimationSystem';
 
 /**
- * Base class for navigable screens. Screens own their DOM subtree and are
- * mounted into the navigation host by NavigationSystem. Each screen gets a
- * FocusNavigator scoped to its root so arrow/Enter/Escape navigation works
- * consistently across the whole app (P0.4).
+ * Base class for navigable screens with entrance/exit choreography and stagger support.
  */
 export abstract class Screen extends Component<HTMLElement> {
   screenId: string;
   params: Record<string, unknown> = {};
-  /** Back behavior invoked by Escape (wired per screen in flow.ts). */
   onBack: (() => void) | null = null;
 
   private focusNavigator: FocusNavigator | null = null;
+  private entrancePlayed = false;
 
   constructor(id: string) {
     super('section', 'screen');
@@ -23,18 +21,14 @@ export abstract class Screen extends Component<HTMLElement> {
     this.el.setAttribute('aria-hidden', 'true');
   }
 
-  /** Build the screen's DOM inside `this.el`. */
   protected abstract build(params: Record<string, unknown>): void;
 
-  /** Default transition used when this screen is entered. */
   protected transition(): TransitionKind {
     return 'fade';
   }
 
-  /** Called by NavigationSystem before mounting. */
   onBeforeEnter(): void {}
 
-  /** Mounts the screen into the navigation host. */
   mount(params: Record<string, unknown>): void {
     this.params = params;
     this.build(params);
@@ -43,23 +37,20 @@ export abstract class Screen extends Component<HTMLElement> {
     this.focusNavigator = new FocusNavigator(this.el, { onCancel: () => this.onBack?.() });
     this.focusNavigator.bind();
     this.focusNavigator.focusFirst();
+    this.playEntrance();
   }
 
-  /** Called by NavigationSystem after enter animation completes. */
   onAfterEnter(): void {}
 
-  /** Called when navigation returns to an existing screen instance. */
   screenWake(_params: Record<string, unknown>): void {
     this.el.setAttribute('aria-hidden', 'false');
     this.focusNavigator?.focusFirst();
   }
 
-  /** Re-scan the current DOM for focusable controls. */
   refreshFocus(): void {
     this.focusNavigator?.focusFirst();
   }
 
-  /** The control the navigator currently considers focused (tests/tools). */
   get focused(): HTMLElement | null {
     return this.focusNavigator?.active ?? null;
   }
@@ -72,5 +63,44 @@ export abstract class Screen extends Component<HTMLElement> {
 
   getTransition(): TransitionKind {
     return this.transition();
+  }
+
+  /** Play entrance choreography: stagger children with --i index. */
+  playEntrance(): void {
+    if (this.entrancePlayed) return;
+    this.entrancePlayed = true;
+
+    // Find stagger children
+    const staggerChildren = this.el.querySelectorAll<HTMLElement>('.stagger-child');
+    staggerChildren.forEach((child, i) => {
+      child.style.setProperty('--i', String(i));
+    });
+
+    // Play screen entrance animation
+    AnimationSystem.play(this.el, 'fade-in', { duration: 200 });
+  }
+
+  /** Play exit animation. */
+  async playExit(): Promise<void> {
+    return new Promise((resolve) => {
+      this.el.classList.add('screen-exit');
+      this.el.addEventListener('animationend', () => resolve(), { once: true });
+    });
+  }
+
+  /** Stagger children of a container. */
+  stagger(
+    container: HTMLElement,
+    animation: AnimKind = 'slide-in-up',
+    options: { duration?: number; delay?: number } = {}
+  ): void {
+    const children = container.querySelectorAll<HTMLElement>(':scope > *');
+    children.forEach((child, i) => {
+      child.style.setProperty('--i', String(i));
+      AnimationSystem.play(child, animation, {
+        duration: options.duration || 280,
+        delay: options.delay || i * 60,
+      });
+    });
   }
 }
