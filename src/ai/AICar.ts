@@ -198,16 +198,18 @@ export class AICar extends RaceEntity {
    * @param playerDistance Player's cumulative track distance.
    * @param moveAmount Game movement amount this frame (in Three.js units).
    */
-  syncMesh(playerDistance: number, moveAmount: number): void {
-    // Z position: negative = ahead of camera, positive = behind
+  syncMesh(playerDistance: number, _moveAmount: number): void {
+    // Relative Z to player (player is at z=0, looking down -Z)
     const distDelta = this._state.distance - playerDistance;
-    const targetZ = -30 - distDelta * 0.8;
-
     this.mesh.position.x = this._state.x;
-    this.mesh.position.z += moveAmount; // Scroll forward with world
-    // Snap Z toward the physics-derived position (prevent drift)
-    this.mesh.position.z += (targetZ - this.mesh.position.z) * 0.05;
+    this.mesh.position.z = -distDelta;
     this.mesh.position.y = 0;
+
+    // Rotate slightly with steering
+    this.mesh.rotation.y = -(this._desiredOffset - this._state.x) * 0.3;
+
+    // Show when within render distance (-160m ahead to +40m behind)
+    this.mesh.visible = this.mesh.position.z > -160 && this.mesh.position.z < 40;
   }
 
   /** GDD identity id (blaze/shield/vector/risky/chameleon/comet). */

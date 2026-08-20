@@ -1267,9 +1267,9 @@ function gameLoop(): void {
       const moveAmount = state.speed * aiDt;
       aiRuntime.tick(aiDt, game.playerDistance, state.speed, moveAmount);
 
-      // Check AI collision with player
+      // Check AI collision with player (bump contact)
       if (aiRuntime.checkPlayerCollision(game.cameraX, game.playerDistance)) {
-        game.setGameOver();
+        game.triggerNudge(0.06);
       }
 
       // Update RaceDirector standings

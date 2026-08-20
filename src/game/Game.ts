@@ -323,6 +323,17 @@ export class Game {
     this._started = false;
   }
 
+  /** Apply minor collision bump feedback during multi-car racing (AI / multiplayer). */
+  triggerNudge(speedDecel = 0.08): void {
+    if (this._speed > 0.3) {
+      this._speed = Math.max(0.2, this._speed - speedDecel);
+    }
+    this.shakeIntensity = Math.max(this.shakeIntensity, 0.9);
+    if (!this.reducedMotion) {
+      this.particlePool.emitSparks(this._cameraX);
+    }
+  }
+
   /** Switch race mode — must be called BEFORE start(). */
   setRaceMode(mode: 'survival' | 'ai-race' | 'versus'): void {
     this._raceMode = mode;

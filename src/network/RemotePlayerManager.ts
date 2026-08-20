@@ -22,7 +22,7 @@ export class RemotePlayerManager {
     {
       state: RemotePlayerState;
       predicted: RemotePlayerState;
-      mesh: THREE.Mesh;
+      mesh: THREE.Group | THREE.Mesh;
       lastUpdate: number;
     }
   > = new Map();
@@ -72,10 +72,10 @@ export class RemotePlayerManager {
       // World space: this game uses a player-centric world where Z moves.
       // Remote car is positioned relative to local player in Z.
       const relativeZ = -(entry.predicted.distance - playerDistance);
-      mesh.position.set(entry.predicted.x * 6 - 3, 0.3, relativeZ);
+      mesh.position.set(entry.predicted.x, 0, relativeZ);
 
-      // Fade out cars that are more than 150m away (won't be visible anyway)
-      const visible = Math.abs(relativeZ) < 150;
+      // Fade out cars that are more than 160m away (won't be visible anyway)
+      const visible = relativeZ > -160 && relativeZ < 40;
       mesh.visible = visible;
     }
   }
@@ -85,8 +85,6 @@ export class RemotePlayerManager {
     const entry = this.players.get(id);
     if (entry) {
       this.scene.remove(entry.mesh);
-      entry.mesh.geometry.dispose();
-      (entry.mesh.material as THREE.Material).dispose();
       this.players.delete(id);
     }
   }
@@ -102,22 +100,58 @@ export class RemotePlayerManager {
     }
   }
 
-  private createMesh(id: string): THREE.Mesh {
+  private createMesh(id: string): THREE.Group {
+    const g = new THREE.Group();
     // Colour-code by peer id for quick identification
     const hue = (parseInt(id.slice(0, 4), 36) % 360) / 360;
-    const colour = new THREE.Color().setHSL(hue, 0.9, 0.55);
+    const colour = new THREE.Color().setHSL(hue, 0.95, 0.55);
 
-    const geo = new THREE.BoxGeometry(1.6, 0.9, 3.2);
-    const mat = new THREE.MeshPhongMaterial({
+    const bodyMat = new THREE.MeshStandardMaterial({
       color: colour,
-      transparent: true,
-      opacity: 0.85,
+      roughness: 0.3,
+      metalness: 0.7,
       emissive: colour,
-      emissiveIntensity: 0.25,
+      emissiveIntensity: 0.2,
     });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.castShadow = true;
-    mesh.name = `remote-${id}`;
-    return mesh;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.78, 3.6), bodyMat);
+    body.position.y = 0.5;
+    g.add(body);
+
+    const cabinMat = new THREE.MeshStandardMaterial({
+      color: 0x060810,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.55, 1.4), cabinMat);
+    cabin.position.set(0, 1.18, 0.3);
+    g.add(cabin);
+
+    // Spoiler
+    const spoilerMat = new THREE.MeshStandardMaterial({ color: colour, roughness: 0.2, metalness: 0.9 });
+    const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.08, 0.4), spoilerMat);
+    spoilerWing.position.set(0, 1.15, 1.7);
+    g.add(spoilerWing);
+    const spoilerPost = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.1), spoilerMat);
+    spoilerPost.position.set(0, 0.97, 1.7);
+    g.add(spoilerPost);
+
+    // Tail lights
+    const tailMat = new THREE.MeshBasicMaterial({ color: 0xff1100 });
+    for (const side of [-0.7, 0.7]) {
+      const tl = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.16, 0.06), tailMat);
+      tl.position.set(side, 0.56, 1.82);
+      g.add(tl);
+    }
+
+    // Headlights
+    const headMat = new THREE.MeshBasicMaterial({ color: 0xeeffff });
+    for (const side of [-0.6, 0.6]) {
+      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 0.06), headMat);
+      hl.position.set(side, 0.48, -1.84);
+      g.add(hl);
+    }
+
+    g.name = `remote-${id}`;
+    return g;
   }
 }
