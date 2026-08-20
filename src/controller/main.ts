@@ -129,16 +129,18 @@ async function connect(): Promise<void> {
   setMsg('Requesting sensor access…');
 
   const permission = await sensor.requestPermission();
-  if (permission !== 'granted') {
+  if (permission === 'denied') {
     connectBtn.disabled = false;
-    setMsg(
-      permission === 'unsupported'
-        ? 'Device orientation is not supported by this browser. Open over HTTPS on mobile Chrome/Safari.'
-        : 'Sensor permission denied. Enable motion sensors in settings and try again.',
-      'error'
-    );
+    setMsg('Sensor permission denied. Enable motion sensors in phone settings.', 'error');
     return;
   }
+
+  // Start sensor immediately so feedback is instant
+  sensor.start((steering, rawAngle) => {
+    lastSteering = steering;
+    lastAngleDeg = rawAngle;
+    updateWheel(steering, rawAngle);
+  });
 
   setMsg('Connecting to game…');
   network = new NetworkManager();
@@ -154,11 +156,6 @@ async function connect(): Promise<void> {
   connected = true;
   statusDot?.classList.add('connected');
   vibrate([40, 60, 40]);
-  sensor.start((steering, rawAngle) => {
-    lastSteering = steering;
-    lastAngleDeg = rawAngle;
-    updateWheel(steering, rawAngle);
-  });
   setStatus('Connected — Rotate wheel to steer', 'ok');
   if (connectCard) connectCard.style.display = 'none';
   disconnectBtn.hidden = false;
@@ -179,6 +176,43 @@ function disconnect(): void {
   disconnectBtn.hidden = true;
   connectBtn.disabled = false;
 }
+
+// Touch/drag fallback on wheel for devices without gyro
+let touchStartX = 0;
+let isTouchingWheel = false;
+
+wheelEl.addEventListener(
+  'touchstart',
+  (e) => {
+    if (e.touches.length > 0) {
+      isTouchingWheel = true;
+      touchStartX = e.touches[0].clientX;
+    }
+  },
+  { passive: true }
+);
+
+wheelEl.addEventListener(
+  'touchmove',
+  (e) => {
+    if (!isTouchingWheel || e.touches.length === 0) return;
+    const dx = e.touches[0].clientX - touchStartX;
+    const steer = Math.max(-1, Math.min(1, dx / 70));
+    const rawAngle = steer * 25;
+    lastSteering = steer;
+    lastAngleDeg = rawAngle;
+    updateWheel(steer, rawAngle);
+  },
+  { passive: true }
+);
+
+wheelEl.addEventListener(
+  'touchend',
+  () => {
+    isTouchingWheel = false;
+  },
+  { passive: true }
+);
 
 const roomFromUrl = new URLSearchParams(location.search).get('room');
 if (roomFromUrl) {
@@ -209,13 +243,23 @@ window.addEventListener('resize', updateOrientationBadge);
 window.addEventListener('orientationchange', updateOrientationBadge);
 updateOrientationBadge();
 
+// Start sensor immediately for testing preview if no prompt needed
+if (!sensor.needsPermission && sensor.supported) {
+  sensor.start((steering, rawAngle) => {
+    if (!isTouchingWheel) {
+      lastSteering = steering;
+      lastAngleDeg = rawAngle;
+      updateWheel(steering, rawAngle);
+    }
+  });
+}
+
 if (!sensor.supported) {
-  setStatus('Motion sensors unavailable', 'error');
-  connectBtn.disabled = true;
+  setStatus('Motion sensors unavailable (Touch steering active)', 'dim');
 } else {
   setStatus(
     sensor.needsPermission ? 'Tap ALLOW to enable steering sensor' : 'Enter room code to connect',
-    sensor.needsPermission ? 'dim' : 'dim'
+    'dim'
   );
 }
 

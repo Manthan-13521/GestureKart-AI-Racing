@@ -93,24 +93,31 @@ export class PhoneSensor {
     return this.currentOrientation;
   }
 
-  /** Request the (iOS-style) permission. Safe to call on any browser. */
   async requestPermission(): Promise<SensorPermission> {
     if (!this.supported) return 'unsupported';
-    const Ctor = DeviceOrientationEvent as unknown as DeviceOrientationWithPermission;
-    if (typeof Ctor.requestPermission === 'function') {
+
+    // iOS 13+ DeviceOrientationEvent permission
+    const OrientationCtor =
+      typeof DeviceOrientationEvent !== 'undefined'
+        ? (DeviceOrientationEvent as unknown as DeviceOrientationWithPermission)
+        : undefined;
+
+    if (typeof OrientationCtor?.requestPermission === 'function') {
       try {
-        const state = await Ctor.requestPermission();
+        const state = await OrientationCtor.requestPermission();
         return state === 'granted' ? 'granted' : 'denied';
-      } catch {
+      } catch (err) {
+        console.warn('Orientation permission error:', err);
         return 'denied';
       }
     }
+
     return 'granted';
   }
 
   /** Start streaming steering updates via `callback`. */
   start(callback: (steering: number, angleDeg: number) => void): void {
-    if (!this.supported || this.listener) return;
+    if (this.listener) return;
 
     this.currentOrientation = getScreenOrientationAngle();
 
@@ -135,12 +142,14 @@ export class PhoneSensor {
       callback(steering, rawAngle);
     };
 
-    window.addEventListener('deviceorientation', this.listener);
+    window.addEventListener('deviceorientation', this.listener, true);
+    window.addEventListener('deviceorientationabsolute', this.listener as EventListener, true);
   }
 
   stop(): void {
     if (this.listener) {
-      window.removeEventListener('deviceorientation', this.listener);
+      window.removeEventListener('deviceorientation', this.listener, true);
+      window.removeEventListener('deviceorientationabsolute', this.listener as EventListener, true);
       this.listener = null;
     }
     if (this.orientationListener) {
