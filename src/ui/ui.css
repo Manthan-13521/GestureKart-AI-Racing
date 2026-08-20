@@ -169,38 +169,38 @@ body {
   background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(0, 0, 0, 0.5) 100%);
 }
 
-/* Aurora light blobs */
+/* Aurora light blobs - SUBDUED */
 .aurora {
   position: absolute;
   border-radius: 50%;
-  filter: blur(70px);
+  filter: blur(80px);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.5;
-  animation: ui-aurora-drift 22s ease-in-out infinite alternate;
+  opacity: 0.18;
+  animation: ui-aurora-drift 35s ease-in-out infinite alternate;
 }
 .aurora--1 {
-  width: 44vw;
-  height: 44vw;
-  top: -12vw;
-  right: -8vw;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.32), transparent 65%);
+  width: 50vw;
+  height: 50vw;
+  top: -15vw;
+  right: -10vw;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.15), transparent 70%);
 }
 .aurora--2 {
-  width: 40vw;
-  height: 40vw;
-  bottom: -14vw;
-  left: -6vw;
-  background: radial-gradient(circle, rgba(255, 215, 0, 0.16), transparent 65%);
-  animation-duration: 28s;
-  animation-delay: -6s;
+  width: 45vw;
+  height: 45vw;
+  bottom: -18vw;
+  left: -8vw;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.08), transparent 70%);
+  animation-duration: 42s;
+  animation-delay: -10s;
 }
 @keyframes ui-aurora-drift {
   from {
     transform: translate3d(0, 0, 0) scale(1);
   }
   to {
-    transform: translate3d(-3vw, 2vh, 0) scale(1.12);
+    transform: translate3d(-2vw, 1.5vh, 0) scale(1.05);
   }
 }
 
