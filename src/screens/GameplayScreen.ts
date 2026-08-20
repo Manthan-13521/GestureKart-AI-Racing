@@ -42,11 +42,23 @@ export class GameplayScreen extends Screen {
 
     const actions = document.createElement('div');
     actions.className = 'menu-actions';
-    const startBtn = new Button('Start Race', { size: 'lg' });
-    startBtn.el.addEventListener('click', () => {
+    const startBtn = new Button('Launch Race [Enter / Space]', { size: 'lg' });
+    const launch = () => {
       SoundHooks.confirm();
       this.startRace?.(track, mode, this.params.network as NetworkManager);
-    });
+    };
+    startBtn.el.addEventListener('click', launch);
+
+    // Allow Space or Enter to launch immediately
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ' || e.key.toLowerCase() === 'w') {
+        e.preventDefault();
+        window.removeEventListener('keydown', keyHandler);
+        launch();
+      }
+    };
+    window.addEventListener('keydown', keyHandler);
+
     actions.appendChild(startBtn.el);
     wrap.appendChild(actions);
 
@@ -54,6 +66,8 @@ export class GameplayScreen extends Screen {
 
     void AnimationSystem.play(title, 'blur-in', { duration: 500 });
     void AnimationSystem.play(hint, 'fade-in', { delay: 180 });
-    void AnimationSystem.play(startBtn.el, 'scale-in', { delay: 260 });
+    void AnimationSystem.play(startBtn.el, 'scale-in', { delay: 260 }).then(() => {
+      startBtn.el.focus();
+    });
   }
 }
