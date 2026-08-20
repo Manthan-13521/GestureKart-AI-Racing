@@ -1,17 +1,21 @@
 import { Screen } from '../ui/components/Screen';
 import { Button } from '../ui/components/Button';
 import { AnimationSystem } from '../ui/core/AnimationSystem';
+import { NotificationSystem } from '../ui/core/NotificationSystem';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
 import { profileManager, type ProfileState } from '../managers/ProfileManager';
+import { SKIN_ITEMS, NEON_ITEMS, type CosmeticItem } from '../progression/ContentCatalog';
+import { xpProgress, formatCurrency } from '../progression/ProgressionView';
+import { titleForLevel } from '../progression/ContentCatalog';
 
-const SKINS = [
-  { id: 'default', name: 'Factory Red', cost: 0, hex: '#cc2222' },
-  { id: 'blue', name: 'Azure Blue', cost: 1500, hex: '#1188cc' },
-  { id: 'green', name: 'Neon Green', cost: 3000, hex: '#00aa88' },
-  { id: 'purple', name: 'Midnight Purple', cost: 5000, hex: '#8833cc' },
-  { id: 'gold', name: 'Champion Gold', cost: 10000, hex: '#ccaa33' },
-];
-
+/**
+ * Garage & Profile (P8.6).
+ *
+ * ContentCatalog is the SINGLE source of cosmetic identity/prices; ownership
+ * and equipped state come from ProfileManager; every mutation (purchase,
+ * equip) goes through the domain — no business logic lives in event
+ * handlers, no prices/ids are duplicated here.
+ */
 export class GarageScreen extends Screen {
   onBack: (() => void) | null = null;
   private state: ProfileState;
@@ -31,7 +35,7 @@ export class GarageScreen extends Screen {
     const wrap = document.createElement('div');
     wrap.className = 'screen-inner screen-scrollable';
 
-    // Header
+    // ─── Header ────────────────────────────────────────────────────────
     const header = document.createElement('div');
     header.className = 'settings-header';
     const title = document.createElement('h2');
@@ -41,84 +45,144 @@ export class GarageScreen extends Screen {
     header.append(title, backBtn.el);
     wrap.appendChild(header);
 
-    // Profile Stats
+    // ─── Driver profile (authoritative values only) ────────────────────
+    const progress = xpProgress(this.state.xp);
+    const driverTitle = titleForLevel(this.state.level);
     const profileSection = document.createElement('div');
     profileSection.className = 'settings-group';
     profileSection.innerHTML = `
-      <h3>Driver Profile</h3>
+      <h3>Driver Profile ${driverTitle ? `· ${driverTitle.toUpperCase()}` : ''}</h3>
       <div class="profile-stats">
         <div class="stat-box">
           <div class="stat-label">LEVEL</div>
           <div class="stat-val">${this.state.level}</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">TOTAL XP</div>
-          <div class="stat-val">${this.state.xp}</div>
+          <div class="stat-label">COINS</div>
+          <div class="stat-val" style="color: gold;">${formatCurrency(this.state.coins)}</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">COINS</div>
-          <div class="stat-val" style="color: gold;">${this.state.coins}</div>
+          <div class="stat-label">RACES</div>
+          <div class="stat-val">${this.state.lifetimeStats.racesFinished}</div>
         </div>
+      </div>
+      <div class="profile-xprow">
+        <div class="profile-xpbar" role="progressbar" aria-valuenow="${progress.into}" aria-valuemin="0" aria-valuemax="1000" aria-label="XP progress">
+          <div class="profile-xpfill" style="width: ${progress.pct}%"></div>
+        </div>
+        <div class="profile-xptext">${progress.into} / ${progress.needed} XP · ${progress.xp} TOTAL · LEVEL ${progress.level + 1} NEXT</div>
       </div>
     `;
     wrap.appendChild(profileSection);
 
-    // Skins
-    const skinsSection = document.createElement('div');
-    skinsSection.className = 'settings-group';
-    const skinsTitle = document.createElement('h3');
-    skinsTitle.textContent = 'Car Skins';
-    skinsSection.appendChild(skinsTitle);
-
-    const skinsGrid = document.createElement('div');
-    skinsGrid.className = 'skins-grid';
-
-    SKINS.forEach((skin) => {
-      const card = document.createElement('div');
-      card.className = 'skin-card';
-      const isUnlocked = this.state.unlockedSkins.includes(skin.id);
-      const isSelected = this.state.selectedSkin === skin.id;
-
-      if (isSelected) card.classList.add('selected');
-
-      card.innerHTML = `
-        <div class="skin-color" style="background: ${skin.hex}"></div>
-        <div class="skin-info">
-          <div class="skin-name">${skin.name}</div>
-          <div class="skin-status">${isSelected ? 'EQUIPPED' : isUnlocked ? 'UNLOCKED' : `${skin.cost} COINS`}</div>
-        </div>
-      `;
-
-      card.addEventListener('click', () => {
-        if (isUnlocked) {
-          profileManager.selectSkin(skin.id);
-          this.rebuild();
-        } else {
-          if (profileManager.purchaseSkin(skin.id, skin.cost)) {
-            this.rebuild();
-          } else {
-            // Flash red to indicate lack of funds
-            card.style.animation = 'none';
-            void card.offsetWidth;
-            card.style.animation = 'error-shake 0.3s ease';
-          }
-        }
-      });
-      skinsGrid.appendChild(card);
-    });
-
-    skinsSection.appendChild(skinsGrid);
-    wrap.appendChild(skinsSection);
+    // ─── Cosmetics sections ────────────────────────────────────────────
+    wrap.appendChild(
+      this.buildCategorySection('Car Skins', SKIN_ITEMS, {
+        isOwned: (id) => this.state.unlockedSkins.includes(id),
+        isEquipped: (id) => this.state.selectedSkin === id,
+        onActivate: (id) => this.handleActivate(id, 'skin'),
+      })
+    );
+    wrap.appendChild(
+      this.buildCategorySection('Neon Trails', NEON_ITEMS, {
+        isOwned: (id) => this.state.unlockedNeons.includes(id),
+        isEquipped: (id) => this.state.selectedNeon === id,
+        onActivate: (id) => this.handleActivate(id, 'neon'),
+      })
+    );
 
     this.el.appendChild(wrap);
 
     void AnimationSystem.play(header, 'fade-in');
     void AnimationSystem.play(profileSection, 'slide-in-right', { delay: 100 });
-    void AnimationSystem.play(skinsSection, 'slide-in-right', { delay: 200 });
+  }
+
+  private buildCategorySection(
+    heading: string,
+    items: CosmeticItem[],
+    hooks: {
+      isOwned: (id: string) => boolean;
+      isEquipped: (id: string) => boolean;
+      onActivate: (id: string) => void;
+    }
+  ): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'settings-group';
+    const h = document.createElement('h3');
+    h.textContent = heading;
+    section.appendChild(h);
+
+    const grid = document.createElement('div');
+    grid.className = 'skins-grid';
+    grid.setAttribute('data-focus-group', heading);
+
+    for (const item of items) {
+      const owned = hooks.isOwned(item.id);
+      const equipped = hooks.isEquipped(item.id);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'skin-card';
+      card.setAttribute('data-item', item.id);
+      if (equipped) card.classList.add('selected');
+
+      const status = equipped ? 'EQUIPPED' : owned ? 'OWNED' : `${formatCurrency(item.cost)} COINS`;
+      card.innerHTML = `
+        <span class="skin-color" style="background: ${item.hex}"></span>
+        <span class="skin-info">
+          <span class="skin-name">${item.name}</span>
+          <span class="skin-status">${status}</span>
+        </span>
+      `;
+      card.addEventListener('click', () => hooks.onActivate(item.id));
+      grid.appendChild(card);
+    }
+
+    section.appendChild(grid);
+    return section;
+  }
+
+  /**
+   * Domain-owned mutation entry: equip when owned, buy when not. Every
+   * outcome is validated by ProfileManager (catalog pricing, ownership,
+   * funds) and the UI only reflects the authoritative result.
+   */
+  private handleActivate(id: string, kind: 'skin' | 'neon'): void {
+    const notify = NotificationSystem.getInstance();
+    if (kind === 'skin') {
+      if (this.state.unlockedSkins.includes(id)) {
+        profileManager.selectSkin(id);
+        notify.success('Equipped', 'Skin applied to your car');
+      } else if (profileManager.purchaseSkin(id)) {
+        notify.success('Purchased', 'New car skin unlocked');
+      } else {
+        notify.error('Not enough coins', 'Earn coins by racing');
+        this.shake(id);
+      }
+    } else {
+      if (this.state.unlockedNeons.includes(id)) {
+        profileManager.selectNeon(id);
+        notify.success('Equipped', 'Neon applied to your car');
+      } else if (profileManager.purchaseNeon(id)) {
+        notify.success('Purchased', 'New neon trail unlocked');
+      } else {
+        notify.error('Not enough coins', 'Earn coins by racing');
+        this.shake(id);
+      }
+    }
+    this.rebuild();
+  }
+
+  private shake(id: string): void {
+    const card = this.el.querySelector<HTMLElement>(`[data-item="${id}"]`);
+    if (!card) return;
+    card.style.animation = 'none';
+    void card.offsetWidth;
+    card.style.animation = 'error-shake 0.3s ease';
   }
 
   private rebuild(): void {
     this.el.innerHTML = '';
     this.build();
+    this.refreshFocus();
   }
 }

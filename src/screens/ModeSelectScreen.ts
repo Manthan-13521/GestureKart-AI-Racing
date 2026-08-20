@@ -5,44 +5,35 @@ import { AnimationSystem } from '../ui/core/AnimationSystem';
 import { SoundHooks } from '../ui/core/SoundHooks';
 import type { TransitionKind } from '../ui/core/TransitionSystem';
 import type { InputSourceId } from '../input/InputFrame';
-import {
-  GAME_MODES,
-  MODE_ORDER,
-  isSourceAllowed,
-  type GameModeConfig,
-  type ModeId,
-} from '../game/GameModeConfig';
+import type { ModeId } from '../game/GameModeConfig';
+import { GAME_MODES, isSourceAllowed, type GameModeConfig } from '../game/GameModeConfig';
+import { Icon } from '../ui/components/Icon';
 
 export type { ModeId };
 
 export type ControlMethod = 'keyboard' | 'hand' | 'gyro' | 'phone' | 'gamepad';
 
-/**
- * Control-method catalog. This is a UI concern: which method a player can
- * pick and how it is labelled. Whether a method is actually allowed for a
- * selected mode is derived from GameModeConfig (`mode.input`), never
- * duplicated here.
- */
 export interface ControlMethodDef {
   id: ControlMethod;
   source: InputSourceId;
   label: string;
-  /** Method is not implemented yet (kept visible but unavailable). */
+  icon: string;
   pending?: boolean;
 }
 
 export const CONTROL_METHODS: ControlMethodDef[] = [
-  { id: 'keyboard', source: 'keyboard', label: 'Keyboard' },
-  { id: 'hand', source: 'hand', label: 'Hand Tracking' },
-  { id: 'gyro', source: 'gyro', label: 'Laptop Gyro' },
-  { id: 'phone', source: 'phone', label: '📱 Phone Wheel' },
-  { id: 'gamepad', source: 'gamepad', label: '🎮 Gamepad', pending: true },
+  { id: 'keyboard', source: 'keyboard', label: 'Keyboard', icon: 'Keyboard' },
+  { id: 'hand', source: 'hand', label: 'Hand Tracking', icon: 'Hand' },
+  { id: 'gyro', source: 'gyro', label: 'Laptop Gyro', icon: 'DeviceMobile' },
+  { id: 'phone', source: 'phone', label: 'Phone Wheel', icon: 'DeviceMobile' },
+  { id: 'gamepad', source: 'gamepad', label: 'Gamepad', icon: 'GameController', pending: true },
 ];
 
-const INPUT_LABEL: Partial<Record<InputSourceId, string>> = {
-  keyboard: '⌨ Keyboard',
-  gamepad: '🎮 Gamepad',
-  hand: '🖐 Gesture',
+/** Compact input icons shown on mode cards (not every source gets a glyph). */
+const MODE_INPUT_ICONS: Partial<Record<InputSourceId, string>> = {
+  keyboard: 'Keyboard',
+  gamepad: 'GameController',
+  hand: 'Hand',
 };
 
 const CONTROL_TO_SOURCE: Record<ControlMethod, InputSourceId> = Object.fromEntries(
@@ -56,6 +47,12 @@ function clampControlMethod(current: ControlMethod, mode: GameModeConfig): Contr
   }
   return current;
 }
+
+/** Visual grouping of modes; DOM order follows MODE_ORDER so focus stays canonical. */
+const MODE_GROUPS: Array<{ label: string; modes: ModeId[] }> = [
+  { label: 'Compete', modes: ['versus', 'multiplayer'] },
+  { label: 'Solo', modes: ['ai-race', 'survival'] },
+];
 
 export class ModeSelectScreen extends Screen {
   trackId = '';
@@ -79,7 +76,7 @@ export class ModeSelectScreen extends Screen {
   protected build(_params: Record<string, unknown>): void {
     const { trackId, selected } = this;
     const wrap = document.createElement('div');
-    wrap.className = 'screen-inner';
+    wrap.className = 'screen-inner mode-select-wrap';
 
     const header = document.createElement('div');
     header.className = 'screen-header';
@@ -92,10 +89,75 @@ export class ModeSelectScreen extends Screen {
     header.append(eyebrow, title);
     wrap.appendChild(header);
 
-    const grid = document.createElement('div');
-    grid.className = 'card-grid card-grid--4';
-    grid.setAttribute('data-focus-group', 'modes');
+    // Mode cards - grouped visually, but one focus cluster in MODE_ORDER so
+    // keyboard navigation follows the canonical versus → multiplayer → ai-race
+    // → survival sequence, then crosses into the control chips.
+    const modeGroups = document.createElement('div');
+    modeGroups.className = 'mode-groups';
+    modeGroups.setAttribute('data-focus-group', 'modes');
 
+    const cards: GlassCard[] = [];
+    for (const group of MODE_GROUPS) {
+      const groupEl = document.createElement('div');
+      groupEl.className = 'mode-group';
+
+      const groupLabel = document.createElement('h3');
+      groupLabel.className = 'mode-group-label';
+      groupLabel.textContent = group.label;
+      groupEl.appendChild(groupLabel);
+
+      const grid = document.createElement('div');
+      grid.className = 'mode-card-grid';
+      for (const id of group.modes) {
+        const mode = GAME_MODES[id];
+        const card = new GlassCard({
+          title: mode.name,
+          subtitle: mode.subtitle,
+          preview: mode.ui.gradient,
+          badge: `Difficulty ${'★'.repeat(mode.ui.difficulty)}${'☆'.repeat(3 - mode.ui.difficulty)}`,
+          focusable: true,
+          onClick: () => {
+            for (const other of cards) other.setSelected(false);
+            card.setSelected(true);
+            this.controlMethod = clampControlMethod(this.controlMethod, mode);
+            this.syncChipAvailability(mode.id);
+            this.selectMethod(this.controlMethod);
+            this.onSelect?.(mode.id);
+          },
+        });
+
+        // Input method icons
+        const icons = document.createElement('div');
+        icons.className = 'mode-input-icons';
+        for (const kind of mode.input) {
+          const iconName = MODE_INPUT_ICONS[kind];
+          if (!iconName) continue;
+          const iconEl = document.createElement('span');
+          iconEl.className = 'input-icon';
+          iconEl.title = kind;
+          const iconComp = new Icon({ name: iconName, size: 14 });
+          iconEl.appendChild(iconComp.el);
+          icons.appendChild(iconEl);
+        }
+        card.addSlot(icons);
+
+        card.addMeta({ label: 'Est. Duration', value: mode.ui.durationLabel });
+        card.setDescription(mode.description);
+        if (selected === mode.id) card.setSelected(true);
+
+        // Preview chip availability on hover/focus without committing.
+        card.el.addEventListener('pointerenter', () => this.syncChipAvailability(mode.id));
+        card.el.addEventListener('focus', () => this.syncChipAvailability(mode.id));
+
+        grid.appendChild(card.el);
+        cards.push(card);
+      }
+      groupEl.appendChild(grid);
+      modeGroups.appendChild(groupEl);
+    }
+    wrap.appendChild(modeGroups);
+
+    // Control method chips
     const controlWrap = document.createElement('div');
     controlWrap.className = 'control-method-row';
     const controlLabel = document.createElement('div');
@@ -115,6 +177,7 @@ export class ModeSelectScreen extends Screen {
     chips.setAttribute('data-focus-group', 'control-method');
     chips.setAttribute('role', 'group');
     chips.setAttribute('aria-label', 'Control method');
+
     this.chipEls = CONTROL_METHODS.map((m) => {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -122,9 +185,15 @@ export class ModeSelectScreen extends Screen {
       chip.dataset.method = m.id;
       chip.setAttribute('aria-pressed', this.controlMethod === m.id ? 'true' : 'false');
       if (m.pending) chip.classList.add('is-unavailable', 'is-pending');
-      const text = document.createElement('span');
-      text.textContent = m.label;
-      chip.appendChild(text);
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'control-chip-icon';
+      iconSpan.setAttribute('aria-hidden', 'true');
+      const iconComp = new Icon({ name: m.icon, size: 16 });
+      iconSpan.appendChild(iconComp.el);
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'control-chip-label';
+      labelSpan.textContent = m.label;
+      chip.append(iconSpan, labelSpan);
       if (m.pending) {
         const pending = document.createElement('span');
         pending.className = 'control-chip-pending';
@@ -140,49 +209,9 @@ export class ModeSelectScreen extends Screen {
       return chip;
     });
     controlWrap.appendChild(chips);
-
-    this.syncChipAvailability(null);
-
-    const cards = MODE_ORDER.map((id) => GAME_MODES[id]).map((mode) => {
-      const card = new GlassCard({
-        title: mode.name,
-        subtitle: mode.subtitle,
-        preview: mode.ui.gradient,
-        badge: `Difficulty ${'★'.repeat(mode.ui.difficulty)}${'☆'.repeat(3 - mode.ui.difficulty)}`,
-        focusable: true,
-        onClick: () => {
-          for (const other of cards) other.setSelected(false);
-          card.setSelected(true);
-          this.controlMethod = clampControlMethod(this.controlMethod, mode);
-          this.syncChipAvailability(mode.id);
-          this.selectMethod(this.controlMethod);
-          this.onSelect?.(mode.id);
-        },
-      });
-      card.el.addEventListener('pointerenter', () => this.syncChipAvailability(mode.id));
-      card.el.addEventListener('focus', () => this.syncChipAvailability(mode.id));
-      const icons = document.createElement('div');
-      icons.className = 'glass-card-meta';
-      icons.style.borderTop = 'none';
-      icons.style.paddingTop = '0';
-      for (const kind of mode.input) {
-        const label = INPUT_LABEL[kind];
-        if (!label) continue;
-        const chip = document.createElement('span');
-        chip.className = `input-icon${kind === 'hand' ? ' input-icon--gesture' : ''}`;
-        chip.textContent = label;
-        icons.appendChild(chip);
-      }
-      card.addSlot(icons);
-      card.addMeta({ label: 'Est. Duration', value: mode.ui.durationLabel });
-      card.setDescription(mode.description);
-      if (selected === mode.id) card.setSelected(true);
-      grid.appendChild(card.el);
-      return card;
-    });
-    wrap.appendChild(grid);
     wrap.appendChild(controlWrap);
 
+    // Footer
     const footer = document.createElement('div');
     footer.className = 'screen-footer';
     const backBtn = new Button('Back', { variant: 'ghost' });
@@ -192,20 +221,19 @@ export class ModeSelectScreen extends Screen {
 
     this.el.appendChild(wrap);
 
+    // Sync initial chip availability
+    this.syncChipAvailability(selected);
+
+    // Entrance animations
     void AnimationSystem.play(header, 'fade-in');
     void AnimationSystem.stagger(
       cards.map((c) => c.el),
       'slide-in-up',
       { duration: 460 },
-      80
+      60
     );
   }
 
-  /**
-   * Select a control method: updates state, aria-pressed, and the active
-   * highlight across the chip row. Also announces the change for AT when
-   * caused by direct user intent (chip click).
-   */
   private selectMethod(m: ControlMethod, opts: { announce?: boolean } = {}): void {
     this.controlMethod = m;
     for (const other of this.chipEls) {
@@ -225,15 +253,6 @@ export class ModeSelectScreen extends Screen {
     if (live) live.textContent = msg;
   }
 
-  /**
-   * Mark control methods that `mode` disallows as unavailable, and dim the
-   * rest. `mode === null` shows all implemented methods as available.
-   *
-   * Mode-disallowed methods stay focusable and clickable (dimmed + labelled
-   * unavailable) so keyboard users can still reach them; enforcement of the
-   * allowed input source happens at mode selection via `clampControlMethod`.
-   * Only pending (unimplemented) methods are hard-blocked via `disabled`.
-   */
   private syncChipAvailability(mode: ModeId | null): void {
     this.previewMode = mode;
     for (const def of CONTROL_METHODS) {
