@@ -4,6 +4,7 @@
  */
 import { AnimationSystem } from './core/AnimationSystem';
 import { SoundHooks } from './core/SoundHooks';
+import { Icon } from './components/Icon';
 
 export interface CeremonyData {
   position: number;
@@ -15,6 +16,15 @@ export interface CeremonyData {
   averageFinish: number;
   division: string;
   nextTrackName: string | null;
+  // P8.4: progression presentation — consumed straight from the
+  // RaceResultGate outcome (never recalculated here).
+  totalXp?: number;
+  totalCoins?: number;
+  levelBefore?: number;
+  levelAfter?: number;
+  levelsGained?: number;
+  title?: string | null;
+  unlocked?: string[];
 }
 
 export class VictoryCeremony {
@@ -29,8 +39,13 @@ export class VictoryCeremony {
     speedY: number;
     rotation: number;
     rotSpeed: number;
+    kind: 'confetti' | 'spark';
+    life: number;
+    maxLife: number;
   }> = [];
   private animationFrameId: number | null = null;
+  /** Fireworks bursts spawn a cluster of radial sparks (GDD §13). */
+  private fireworkTimer = 0;
 
   constructor() {}
 
@@ -50,8 +65,41 @@ export class VictoryCeremony {
       }
     }
 
+    // P8.4: level-up presentation (event-driven from the gate outcome).
+    const levelsGained = data.levelsGained ?? 0;
+    let levelUpBlock = '';
+    if (levelsGained > 0) {
+      levelUpBlock = `
+        <div class="ceremony-levelup" role="status">
+          <div class="ceremony-levelup-title">LEVEL UP!</div>
+          <div class="ceremony-levelup-text">LEVEL ${data.levelBefore} → LEVEL ${data.levelAfter}</div>
+        </div>
+      `;
+    }
+    const unlocked = (data.unlocked ?? []).filter(Boolean);
+    const titleUnlockBlock =
+      unlocked.length > 0
+        ? `<div class="ceremony-unlock">NEW TITLE: ${unlocked.map((t) => t.toUpperCase()).join(' · ')}</div>`
+        : '';
+
+    // P8.4: resulting totals row (separate classes — the 3-stat grid
+    // contract stays untouched).
+    const totalsBlock = `
+      <div class="ceremony-totals">
+        <div class="ceremony-total">
+          <div class="ceremony-total-val">${data.totalXp ?? data.xpAwarded}</div>
+          <div class="ceremony-total-lbl">TOTAL XP</div>
+        </div>
+        <div class="ceremony-total">
+          <div class="ceremony-total-val">${data.totalCoins ?? data.coinsAwarded}</div>
+          <div class="ceremony-total-lbl">COIN BALANCE</div>
+        </div>
+        ${data.title ? `<div class="ceremony-total"><div class="ceremony-total-val">${data.title.toUpperCase()}</div><div class="ceremony-total-lbl">TITLE</div></div>` : ''}
+      </div>
+    `;
+
     container.innerHTML = `
-      <div class="results-crown">🏆</div>
+      <div class="results-crown">${Icon.getSVG('trophy', 64) ?? ''}</div>
       <div class="results-title">VICTORY CEREMONY</div>
       
       <div class="ceremony-rank">
@@ -75,6 +123,10 @@ export class VictoryCeremony {
           <div class="ceremony-stat-lbl">XP</div>
         </div>
       </div>
+
+      ${levelUpBlock}
+      ${titleUnlockBlock}
+      ${totalsBlock}
     `;
 
     // Confetti Canvas setup
@@ -120,6 +172,34 @@ export class VictoryCeremony {
         speedY: Math.random() * 4 + 5,
         rotation: Math.random() * Math.PI * 2,
         rotSpeed: (Math.random() - 0.5) * 0.1,
+        kind: 'confetti',
+        life: 6,
+        maxLife: 6,
+      });
+    }
+  }
+
+  /** Burst of radial sparks from a random point — victory fireworks. */
+  private spawnFirework(): void {
+    if (!this.canvas) return;
+    const x = this.canvas.width * (0.2 + Math.random() * 0.6);
+    const y = this.canvas.height * (0.15 + Math.random() * 0.35);
+    const color = ['#ffd700', '#00d4ff', '#ff2d95', '#00ff41'][Math.floor(Math.random() * 4)];
+    for (let i = 0; i < 40; i++) {
+      const angle = (i / 40) * Math.PI * 2;
+      const speed = 2 + Math.random() * 3;
+      this.particles.push({
+        x,
+        y,
+        size: Math.random() * 3 + 1.5,
+        color,
+        speedX: Math.cos(angle) * speed,
+        speedY: Math.sin(angle) * speed,
+        rotation: 0,
+        rotSpeed: 0,
+        kind: 'spark',
+        life: 1,
+        maxLife: 1,
       });
     }
   }
@@ -128,24 +208,51 @@ export class VictoryCeremony {
     if (!this.ctx || !this.canvas) return;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+    // Fireworks bursts throughout the ceremony (≈1 per 0.6s).
+    this.fireworkTimer += 1 / 60;
+    if (this.fireworkTimer > 0.6) {
+      this.fireworkTimer = 0;
+      this.spawnFirework();
+    }
+
     let active = false;
+    // Prune dead particles so the array cannot grow unbounded during long
+    // ceremonies (P12 release hardening: memory).
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      if (p.kind === 'confetti' && p.y > this.canvas.height + 20) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+      if (p.kind === 'spark' && p.life <= 0) {
+        this.particles.splice(i, 1);
+        continue;
+      }
+    }
+
     for (const p of this.particles) {
       p.y += p.speedY;
       p.x += p.speedX;
       p.rotation += p.rotSpeed;
+      p.life -= 1 / 60;
+      if (p.kind === 'spark') {
+        p.speedY += 0.12; // gravity
+      }
 
       this.ctx.save();
       this.ctx.translate(p.x, p.y);
       this.ctx.rotate(p.rotation);
+      this.ctx.globalAlpha = p.kind === 'spark' ? Math.max(0, p.life / p.maxLife) : 1;
       this.ctx.fillStyle = p.color;
       this.ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
       this.ctx.restore();
 
-      if (p.y < this.canvas.height + 20) {
+      if (p.kind === 'confetti' || p.life > 0) {
         active = true;
       }
     }
 
+    this.ctx.globalAlpha = 1;
     if (active) {
       this.animationFrameId = requestAnimationFrame(this.animate);
     }
@@ -157,6 +264,7 @@ export class VictoryCeremony {
       this.animationFrameId = null;
     }
     this.particles = [];
+    this.fireworkTimer = 0;
     if (this.canvas) {
       this.canvas.remove();
       this.canvas = null;
