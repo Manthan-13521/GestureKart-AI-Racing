@@ -4,123 +4,225 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Virtual Steering — Phone Wheel</title>
+    <title>GestureKart — Phone Wheel</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/src/controller/controller.css" />
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   </head>
   <body>
-    <div class="ctl-background-grid" aria-hidden="true"></div>
-    <div class="ctl-aurora" aria-hidden="true"></div>
+    <!-- Animated background -->
+    <div class="bg-grid" aria-hidden="true"></div>
+    <div class="bg-glow" aria-hidden="true"></div>
 
     <main class="ctl">
-      <!-- Header -->
+      <!-- ── Header ── -->
       <header class="ctl-header">
         <div class="ctl-brand">
-          <span class="ctl-logo-icon">&#9673;</span>
-          <h1>VIRTUAL STEERING</h1>
+          <svg class="ctl-logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
+            <circle cx="12" cy="12" r="4" fill="currentColor" />
+            <line
+              x1="12"
+              y1="2"
+              x2="12"
+              y2="8"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <line
+              x1="4.9"
+              y1="7.1"
+              x2="8.9"
+              y2="9.5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+            <line
+              x1="19.1"
+              y1="7.1"
+              x2="15.1"
+              y2="9.5"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span class="ctl-brand-name">GESTUREKART</span>
         </div>
-        <div class="ctl-header-badges">
-          <span class="ctl-badge" id="ctl-orientation-badge">LANDSCAPE WHEEL</span>
-          <p class="ctl-status" id="ctl-status">Connecting…</p>
+        <div class="ctl-header-right">
+          <span class="ctl-orient-badge" id="ctl-orientation-badge">LANDSCAPE</span>
+          <span class="ctl-status-dot" id="ctl-status-dot"></span>
         </div>
       </header>
 
-      <!-- Horizontal Guidance Banner -->
-      <section class="ctl-guide-banner" id="ctl-guide-banner">
-        <div class="ctl-guide-icon" aria-hidden="true">
-          <svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="2" y="2" width="44" height="28" rx="5" stroke="var(--cyan)" stroke-width="2" />
-            <circle cx="6" cy="16" r="2" fill="var(--cyan)" />
-            <path d="M20 16 L28 16" stroke="var(--cyan)" stroke-width="1.5" stroke-dasharray="2 2" />
-          </svg>
-        </div>
-        <div class="ctl-guide-text">
-          <strong>HOLD HORIZONTALLY</strong>
-          <span>Turn phone like a steering wheel. Turn right to steer right!</span>
-        </div>
-      </section>
+      <!-- ── Guide Banner (portrait only) ── -->
+      <div class="ctl-guide" id="ctl-guide">
+        <svg viewBox="0 0 32 20" fill="none" aria-hidden="true">
+          <rect x="1" y="1" width="30" height="18" rx="3" stroke="var(--c-cyan)" stroke-width="1.5" />
+          <circle cx="4" cy="10" r="1.5" fill="var(--c-cyan)" />
+          <path d="M13 10h6" stroke="var(--c-cyan)" stroke-width="1.2" stroke-dasharray="2 1.5" />
+        </svg>
+        <span>Rotate phone <strong>landscape</strong> &amp; turn like a steering wheel</span>
+      </div>
 
-      <!-- Steering visualization -->
-      <section class="ctl-wheel-wrap" aria-label="Steering Wheel">
-        <!-- Angle gauge ring background -->
-        <svg class="ctl-gauge-ring" viewBox="0 0 280 280" aria-hidden="true">
-          <circle cx="140" cy="140" r="126" class="ctl-gauge-bg" />
-          <path id="ctl-gauge-arc" class="ctl-gauge-arc" d="M 40 200 A 120 120 0 1 1 240 200" fill="none" />
+      <!-- ── Steering Wheel ── -->
+      <section class="ctl-wheel-section">
+        <!-- Gauge ring SVG behind wheel -->
+        <svg class="ctl-gauge" viewBox="0 0 260 260" aria-hidden="true">
+          <circle cx="130" cy="130" r="118" class="ctl-gauge-track" />
+          <path
+            id="ctl-gauge-arc"
+            d="M 22 200 A 118 118 0 1 1 238 200"
+            class="ctl-gauge-fill"
+            fill="none"
+            stroke-dasharray="380"
+            stroke-dashoffset="190"
+          />
+          <!-- Tick marks -->
+          <g class="ctl-gauge-ticks" stroke="rgba(255,255,255,0.15)" stroke-width="1.5">
+            <line x1="130" y1="12" x2="130" y2="24" />
+            <line x1="187" y1="28" x2="181" y2="38" />
+            <line x1="232" y1="73" x2="222" y2="79" />
+            <line x1="248" y1="130" x2="236" y2="130" />
+            <line x1="232" y1="187" x2="222" y2="181" />
+            <line x1="73" y1="28" x2="79" y2="38" />
+            <line x1="28" y1="73" x2="38" y2="79" />
+            <line x1="12" y1="130" x2="24" y2="130" />
+            <line x1="28" y1="187" x2="38" y2="181" />
+          </g>
         </svg>
 
+        <!-- Wheel -->
         <div class="ctl-wheel" id="ctl-wheel">
-          <div class="ctl-wheel-rim"></div>
-          <span class="ctl-stripe ctl-stripe--top"></span>
-          <span class="ctl-grip ctl-grip--left"></span>
-          <span class="ctl-grip ctl-grip--right"></span>
-          <div class="ctl-hub">
-            <span class="ctl-hub-core"></span>
-            <span class="ctl-hub-label">PRO</span>
+          <div class="ctl-wheel-inner">
+            <!-- Spokes -->
+            <span class="spoke spoke-top"></span>
+            <span class="spoke spoke-bl"></span>
+            <span class="spoke spoke-br"></span>
+            <!-- Hub -->
+            <div class="ctl-hub">
+              <span class="ctl-hub-ring"></span>
+              <span class="ctl-hub-dot"></span>
+            </div>
+            <!-- Top marker stripe -->
+            <span class="ctl-top-mark"></span>
           </div>
-          <span class="ctl-spoke ctl-spoke--up"></span>
-          <span class="ctl-spoke ctl-spoke--left"></span>
-          <span class="ctl-spoke ctl-spoke--right"></span>
         </div>
-        <div class="ctl-wheel-shadow"></div>
 
-        <!-- Telemetry angle & direction readout -->
-        <div class="ctl-readout">
-          <div class="ctl-dir" id="ctl-dir">CENTER</div>
-          <div class="ctl-angle" id="ctl-angle">0.0°</div>
+        <!-- Telemetry -->
+        <div class="ctl-telemetry">
+          <div class="ctl-dir-wrap">
+            <span class="ctl-dir" id="ctl-dir">CENTER</span>
+          </div>
+          <div class="ctl-angle-wrap">
+            <span class="ctl-angle" id="ctl-angle">0.0°</span>
+          </div>
         </div>
       </section>
 
-      <!-- Connection Card (when disconnected) -->
-      <section class="ctl-card" id="ctl-connect-card">
-        <label class="ctl-room" for="ctl-code">ROOM CODE</label>
-        <div class="ctl-input-wrap">
-          <input
-            class="ctl-code-input"
-            id="ctl-code"
-            inputmode="text"
-            autocapitalize="characters"
-            autocomplete="off"
-            maxlength="6"
-            placeholder="e.g. 7K4P9Q"
-          />
-        </div>
-        <button class="ctl-btn ctl-btn--primary" id="ctl-connect">
-          <span class="ctl-btn-icon">&#9658;</span> ALLOW SENSOR + CONNECT
-        </button>
+      <!-- ── Status Bar ── -->
+      <div class="ctl-status-bar">
+        <p class="ctl-status-text" id="ctl-status">Initialising…</p>
         <p class="ctl-msg" id="ctl-msg"></p>
-      </section>
+      </div>
 
-      <!-- Quick Actions / In-Race Controls -->
-      <section class="ctl-controls-grid">
-        <button class="ctl-btn ctl-btn--calibrate" id="ctl-calibrate">
-          <span class="ctl-btn-icon">&#8982;</span> CALIBRATE CENTER
+      <!-- ── Connect Card ── -->
+      <section class="ctl-card" id="ctl-connect-card">
+        <label class="ctl-label" for="ctl-code">ROOM CODE</label>
+        <input
+          class="ctl-code-input"
+          id="ctl-code"
+          inputmode="text"
+          autocapitalize="characters"
+          autocomplete="off"
+          maxlength="6"
+          placeholder="e.g. 7K4P9Q"
+        />
+        <button class="ctl-btn ctl-btn--primary" id="ctl-connect">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" width="16" height="16">
+            <path d="M10 2a8 8 0 1 1 0 16A8 8 0 0 1 10 2z" stroke="currentColor" stroke-width="1.8" />
+            <path
+              d="M6 10h8M13 7l3 3-3 3"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          ALLOW SENSOR &amp; CONNECT
         </button>
       </section>
 
-      <!-- Sensitivity Slider -->
-      <section class="ctl-card ctl-card--compact">
-        <div class="ctl-row ctl-row--slider">
-          <div class="ctl-slider-header">
-            <label for="ctl-sensitivity">STEERING SENSITIVITY</label>
-            <span class="ctl-val-badge" id="ctl-sensitivity-val">100%</span>
-          </div>
-          <input type="range" id="ctl-sensitivity" min="50" max="200" value="100" />
-        </div>
-      </section>
+      <!-- ── Controls Row ── -->
+      <div class="ctl-controls">
+        <button class="ctl-btn ctl-btn--secondary" id="ctl-calibrate">
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" width="14" height="14">
+            <circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="10" cy="10" r="3" fill="currentColor" />
+            <line
+              x1="10"
+              y1="2"
+              x2="10"
+              y2="5"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+            <line
+              x1="10"
+              y1="15"
+              x2="10"
+              y2="18"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+            <line
+              x1="2"
+              y1="10"
+              x2="5"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+            <line
+              x1="15"
+              y1="10"
+              x2="18"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+          </svg>
+          CALIBRATE
+        </button>
+        <button class="ctl-btn ctl-btn--danger" id="ctl-disconnect" hidden>DISCONNECT</button>
+      </div>
 
-      <button class="ctl-btn ctl-btn--danger" id="ctl-disconnect" hidden>DISCONNECT</button>
+      <!-- ── Sensitivity Slider ── -->
+      <div class="ctl-card ctl-card--slim">
+        <div class="ctl-slider-row">
+          <label for="ctl-sensitivity" class="ctl-label">SENSITIVITY</label>
+          <span class="ctl-val" id="ctl-sensitivity-val">100%</span>
+        </div>
+        <input type="range" id="ctl-sensitivity" min="50" max="200" value="100" />
+      </div>
     </main>
+
     <script type="module" src="/src/controller/main.ts"></script>
   </body>
 </html>

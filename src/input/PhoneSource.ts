@@ -81,7 +81,12 @@ export class PhoneSource implements InputSource {
     const network = new NetworkManager();
     this.network = network;
     network.onMessage((_senderId, msg) => this.handleMessage(msg));
-    network.onPeerConnected(() => this.setConnected(true));
+    network.onPeerConnected(() => {
+      // Reset timestamp gate so a phone page-refresh (which resets its clock)
+      // never gets all packets silently dropped.
+      this._lastT = -Infinity;
+      this.setConnected(true);
+    });
     network.onPeerDisconnected(() => this.setConnected(false));
     const code = await network.createLobby();
     this._roomCode = code;

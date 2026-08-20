@@ -35,13 +35,15 @@ function vibrate(ms: number | number[] = 20): void {
   }
 }
 
+const statusDot = document.getElementById('ctl-status-dot') as HTMLElement | null;
+
 function updateOrientationBadge(): void {
   if (!orientationBadge) return;
   const isLandscape =
     (typeof window !== 'undefined' &&
       (window.screen?.orientation?.type?.includes('landscape') || window.innerWidth > window.innerHeight)) ??
     false;
-  orientationBadge.textContent = isLandscape ? 'LANDSCAPE WHEEL' : 'PORTRAIT TILT';
+  orientationBadge.textContent = isLandscape ? 'LANDSCAPE' : 'PORTRAIT';
 }
 
 function setStatus(text: string, kind: 'dim' | 'ok' | 'error' = 'dim'): void {
@@ -76,39 +78,42 @@ function updateWheel(steering: number, rawAngle: number): void {
     const sign = rawAngle > 0 ? '+' : '';
     angleEl.textContent = `${sign}${rawAngle.toFixed(1)}°`;
     if (steering < -0.05) {
-      angleEl.style.borderColor = 'var(--cyan)';
-      angleEl.style.color = 'var(--cyan)';
+      angleEl.style.borderColor = 'var(--c-cyan)';
+      angleEl.style.color = 'var(--c-cyan)';
     } else if (steering > 0.05) {
-      angleEl.style.borderColor = 'var(--gold)';
-      angleEl.style.color = 'var(--gold)';
+      angleEl.style.borderColor = 'var(--c-gold)';
+      angleEl.style.color = 'var(--c-gold)';
     } else {
-      angleEl.style.borderColor = 'var(--line)';
-      angleEl.style.color = 'var(--text)';
+      angleEl.style.borderColor = 'rgba(255,255,255,0.1)';
+      angleEl.style.color = 'var(--c-text)';
     }
   }
 
   // Update gauge arc
   if (gaugeArc) {
-    const baseOffset = 200;
+    const baseOffset = 190;
     const maxDeflect = 120;
     const fill = steering * maxDeflect;
     gaugeArc.setAttribute('stroke-dashoffset', `${baseOffset - fill}`);
     if (steering < -0.05) {
-      gaugeArc.style.stroke = 'var(--cyan)';
+      gaugeArc.style.stroke = 'var(--c-cyan)';
     } else if (steering > 0.05) {
-      gaugeArc.style.stroke = 'var(--gold)';
+      gaugeArc.style.stroke = 'var(--c-gold)';
     } else {
       gaugeArc.style.stroke = 'rgba(255,255,255,0.2)';
     }
   }
 }
 
-function sendLoop(now: number): void {
-  if (connected && network && now - lastSend >= SEND_INTERVAL) {
-    lastSend = now;
-    packet.payload.s = lastSteering;
-    packet.payload.t = now;
-    network.broadcast(packet);
+function sendLoop(): void {
+  if (connected && network) {
+    const now = Date.now();
+    if (now - lastSend >= SEND_INTERVAL) {
+      lastSend = now;
+      packet.payload.s = lastSteering;
+      packet.payload.t = now;
+      network.broadcast(packet);
+    }
   }
   requestAnimationFrame(sendLoop);
 }
@@ -147,13 +152,14 @@ async function connect(): Promise<void> {
   }
 
   connected = true;
+  statusDot?.classList.add('connected');
   vibrate([40, 60, 40]);
   sensor.start((steering, rawAngle) => {
     lastSteering = steering;
     lastAngleDeg = rawAngle;
     updateWheel(steering, rawAngle);
   });
-  setStatus('Connected — Hold phone like a steering wheel', 'ok');
+  setStatus('Connected — Rotate wheel to steer', 'ok');
   if (connectCard) connectCard.style.display = 'none';
   disconnectBtn.hidden = false;
   setMsg('');
@@ -161,6 +167,7 @@ async function connect(): Promise<void> {
 
 function disconnect(): void {
   connected = false;
+  statusDot?.classList.remove('connected');
   sensor.stop();
   network?.disconnect();
   network = null;
