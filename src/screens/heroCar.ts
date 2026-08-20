@@ -242,7 +242,7 @@ function createPremiumProceduralCar(): void {
 
   // Main chassis - low, wide, aggressive
   const chassisGeo = new THREE.BoxGeometry(2.4, 0.35, 4.8);
-  const chassisMat = new THREE.MeshStandardMaterial({
+  const chassisMat = new THREE.MeshPhysicalMaterial({
     color: 0x001a2e,
     metalness: 0.95,
     roughness: 0.05,
@@ -257,7 +257,7 @@ function createPremiumProceduralCar(): void {
 
   // Upper body - tapered cockpit area
   const upperGeo = new THREE.BoxGeometry(1.5, 0.45, 2.2);
-  const upperMat = new THREE.MeshStandardMaterial({
+  const upperMat = new THREE.MeshPhysicalMaterial({
     color: 0x000814,
     metalness: 0.9,
     roughness: 0.1,
@@ -363,7 +363,7 @@ function createPremiumProceduralCar(): void {
     metalness: 0.1,
     roughness: 0.85,
   });
-  const rimMat = new THREE.MeshStandardMaterial({
+  const rimMat = new THREE.MeshPhysicalMaterial({
     color: 0x1a1a2e,
     metalness: 0.95,
     roughness: 0.1,

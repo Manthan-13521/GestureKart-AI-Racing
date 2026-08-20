@@ -188,6 +188,8 @@ describe('keyboard flow (FocusNavigator through real screens)', () => {
     // versus allows phone (P0.2) → phone-pairing route
     const modeCards = document.querySelectorAll('.glass-card');
     (modeCards[0] as HTMLElement).click();
+    const modeStartBtn = document.querySelector('.screen-footer .mode-select-start') as HTMLElement;
+    modeStartBtn.click();
     await settle();
     expect(nav.current).toBe('phone-pairing');
     expect(nav.currentScreen!.el.textContent).toContain('Phone Controller');

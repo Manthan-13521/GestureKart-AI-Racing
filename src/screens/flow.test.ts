@@ -156,6 +156,8 @@ describe('game flow wiring', () => {
       c.textContent?.includes('Endless Survival')
     ) as HTMLElement;
     survivalCard.click();
+    const modeStartBtn = mount.querySelector('.screen-footer .mode-select-start') as HTMLElement;
+    modeStartBtn.click();
     await vi.waitFor(() => expect(nav.current).toBe('gameplay'), { timeout: 3000 });
     const startBtn = mount.querySelector('.menu-actions .btn') as HTMLElement;
     startBtn.click();
@@ -300,6 +302,8 @@ describe('game flow wiring', () => {
       c.textContent?.includes('Endless Survival')
     ) as HTMLElement;
     survivalCard.click();
+    const modeStartBtn = mount.querySelector('.screen-footer .mode-select-start') as HTMLElement;
+    modeStartBtn.click();
     await settle();
 
     expect(nav.current).toBe('gameplay');
@@ -318,6 +322,8 @@ describe('game flow wiring', () => {
       c.textContent?.includes('AI Race')
     ) as HTMLElement;
     aiRaceCard.click();
+    const modeStartBtn = mount.querySelector('.screen-footer .mode-select-start') as HTMLElement;
+    modeStartBtn.click();
     await settle();
     expect(nav.current).toBe('phone-pairing');
   });
@@ -329,6 +335,8 @@ describe('game flow wiring', () => {
       c.textContent?.includes('You vs You')
     ) as HTMLElement;
     versusCard.click();
+    const modeStartBtn = mount.querySelector('.screen-footer .mode-select-start') as HTMLElement;
+    modeStartBtn.click();
     await vi.waitFor(() => expect(nav.current).toBe('gameplay'), { timeout: 3000 });
 
     const sel = lastSelection();
