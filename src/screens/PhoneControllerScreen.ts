@@ -139,20 +139,31 @@ export class PhoneControllerScreen extends Screen {
       codeVal.textContent = code;
       block.appendChild(codeVal);
 
+      // Horizontal steering instruction box
+      const steerGuide = document.createElement('div');
+      steerGuide.className = 'phone-pairing-guide';
+      steerGuide.innerHTML = `
+        <div class="phone-guide-badge">HORIZONTAL WHEEL MODE</div>
+        <div class="phone-guide-desc">Hold your phone <strong>horizontally</strong> like a steering wheel. Turn clockwise to steer <strong>Right</strong> and counter-clockwise to steer <strong>Left</strong>.</div>
+      `;
+      block.appendChild(steerGuide);
+
       const status = document.createElement('div');
       status.className = 'phone-pairing-status';
-      status.textContent = this.state === 'connected' ? 'Phone connected' : 'Waiting for phone…';
-      status.style.color = this.state === 'connected' ? 'var(--green)' : 'var(--text2)';
+      status.textContent =
+        this.state === 'connected' ? '✓ Phone connected & calibrated' : 'Waiting for phone connection…';
+      status.style.color = this.state === 'connected' ? 'var(--accent-primary)' : 'var(--text-muted)';
       block.appendChild(status);
 
       const hint = document.createElement('div');
       hint.className = 'phone-pairing-hint';
-      hint.textContent = 'Open the controller page on your phone and scan the QR code (or enter the code).';
+      hint.textContent =
+        'Scan QR code with your phone camera or enter the room code on the controller web page.';
       block.appendChild(hint);
 
       const startBtn = new Button('Start Race', { variant: 'primary', size: 'lg' });
       startBtn.el.style.width = '100%';
-      startBtn.el.style.marginTop = '8px';
+      startBtn.el.style.marginTop = '12px';
       if (this.state !== 'connected') startBtn.disabled = true;
       startBtn.el.addEventListener('click', () => {
         SoundHooks.confirm();

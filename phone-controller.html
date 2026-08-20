@@ -7,57 +7,115 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Virtual Steering — Phone Wheel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/controller/controller.css" />
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   </head>
   <body>
+    <div class="ctl-background-grid" aria-hidden="true"></div>
+    <div class="ctl-aurora" aria-hidden="true"></div>
+
     <main class="ctl">
+      <!-- Header -->
       <header class="ctl-header">
-        <h1>STEERING WHEEL</h1>
-        <p class="ctl-status" id="ctl-status">Checking connection…</p>
+        <div class="ctl-brand">
+          <span class="ctl-logo-icon">&#9673;</span>
+          <h1>VIRTUAL STEERING</h1>
+        </div>
+        <div class="ctl-header-badges">
+          <span class="ctl-badge" id="ctl-orientation-badge">LANDSCAPE WHEEL</span>
+          <p class="ctl-status" id="ctl-status">Connecting…</p>
+        </div>
       </header>
 
-      <!-- Steering visualization -->
-      <section class="ctl-wheel-wrap" aria-hidden="true">
-        <div class="ctl-wheel" id="ctl-wheel">
-          <span class="ctl-grip ctl-grip--top"></span>
-          <span class="ctl-grip ctl-grip--left"></span>
-          <span class="ctl-grip ctl-grip--right"></span>
-          <span class="ctl-hub"></span>
-          <span class="ctl-spoke ctl-spoke--up"></span>
-          <span class="ctl-spoke ctl-spoke--down"></span>
+      <!-- Horizontal Guidance Banner -->
+      <section class="ctl-guide-banner" id="ctl-guide-banner">
+        <div class="ctl-guide-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="44" height="28" rx="5" stroke="var(--cyan)" stroke-width="2" />
+            <circle cx="6" cy="16" r="2" fill="var(--cyan)" />
+            <path d="M20 16 L28 16" stroke="var(--cyan)" stroke-width="1.5" stroke-dasharray="2 2" />
+          </svg>
         </div>
-        <div class="ctl-wheel-shadow"></div>
-        <div class="ctl-dir" id="ctl-dir">CENTER</div>
+        <div class="ctl-guide-text">
+          <strong>HOLD HORIZONTALLY</strong>
+          <span>Turn phone like a steering wheel. Turn right to steer right!</span>
+        </div>
       </section>
 
-      <!-- Connection -->
-      <section class="ctl-card">
+      <!-- Steering visualization -->
+      <section class="ctl-wheel-wrap" aria-label="Steering Wheel">
+        <!-- Angle gauge ring background -->
+        <svg class="ctl-gauge-ring" viewBox="0 0 280 280" aria-hidden="true">
+          <circle cx="140" cy="140" r="126" class="ctl-gauge-bg" />
+          <path id="ctl-gauge-arc" class="ctl-gauge-arc" d="M 40 200 A 120 120 0 1 1 240 200" fill="none" />
+        </svg>
+
+        <div class="ctl-wheel" id="ctl-wheel">
+          <div class="ctl-wheel-rim"></div>
+          <span class="ctl-stripe ctl-stripe--top"></span>
+          <span class="ctl-grip ctl-grip--left"></span>
+          <span class="ctl-grip ctl-grip--right"></span>
+          <div class="ctl-hub">
+            <span class="ctl-hub-core"></span>
+            <span class="ctl-hub-label">PRO</span>
+          </div>
+          <span class="ctl-spoke ctl-spoke--up"></span>
+          <span class="ctl-spoke ctl-spoke--left"></span>
+          <span class="ctl-spoke ctl-spoke--right"></span>
+        </div>
+        <div class="ctl-wheel-shadow"></div>
+
+        <!-- Telemetry angle & direction readout -->
+        <div class="ctl-readout">
+          <div class="ctl-dir" id="ctl-dir">CENTER</div>
+          <div class="ctl-angle" id="ctl-angle">0.0°</div>
+        </div>
+      </section>
+
+      <!-- Connection Card (when disconnected) -->
+      <section class="ctl-card" id="ctl-connect-card">
         <label class="ctl-room" for="ctl-code">ROOM CODE</label>
-        <input
-          class="ctl-code-input"
-          id="ctl-code"
-          inputmode="text"
-          autocapitalize="characters"
-          autocomplete="off"
-          maxlength="6"
-          placeholder="e.g. 7K4P9Q"
-        />
-        <button class="ctl-btn ctl-btn--primary" id="ctl-connect">ALLOW SENSOR + CONNECT</button>
+        <div class="ctl-input-wrap">
+          <input
+            class="ctl-code-input"
+            id="ctl-code"
+            inputmode="text"
+            autocapitalize="characters"
+            autocomplete="off"
+            maxlength="6"
+            placeholder="e.g. 7K4P9Q"
+          />
+        </div>
+        <button class="ctl-btn ctl-btn--primary" id="ctl-connect">
+          <span class="ctl-btn-icon">&#9658;</span> ALLOW SENSOR + CONNECT
+        </button>
         <p class="ctl-msg" id="ctl-msg"></p>
       </section>
 
-      <!-- Calibration + sensitivity -->
-      <section class="ctl-card">
-        <div class="ctl-row">
-          <button class="ctl-btn" id="ctl-calibrate">CALIBRATE CENTER</button>
-          <span class="ctl-hint">Hold wheel straight, then tap</span>
-        </div>
+      <!-- Quick Actions / In-Race Controls -->
+      <section class="ctl-controls-grid">
+        <button class="ctl-btn ctl-btn--calibrate" id="ctl-calibrate">
+          <span class="ctl-btn-icon">&#8982;</span> CALIBRATE CENTER
+        </button>
+      </section>
+
+      <!-- Sensitivity Slider -->
+      <section class="ctl-card ctl-card--compact">
         <div class="ctl-row ctl-row--slider">
-          <label for="ctl-sensitivity">SENSITIVITY</label>
+          <div class="ctl-slider-header">
+            <label for="ctl-sensitivity">STEERING SENSITIVITY</label>
+            <span class="ctl-val-badge" id="ctl-sensitivity-val">100%</span>
+          </div>
           <input type="range" id="ctl-sensitivity" min="50" max="200" value="100" />
-          <span id="ctl-sensitivity-val">100%</span>
         </div>
       </section>
 
