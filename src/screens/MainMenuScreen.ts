@@ -35,13 +35,15 @@ export class MainMenuScreen extends Screen {
     spawnParticles(this.el);
     spawnRoad(this.el);
 
-    // Hero car container (Three.js canvas will be injected)
+    const wrap = document.createElement('div');
+    wrap.className = 'screen-inner menu-wrap';
+
+    // Hero car container — must be first child of menu-wrap for55/45 desktop split
     this.heroCar = document.createElement('div');
     this.heroCar.className = 'menu-hero-car';
     this.heroCar.setAttribute('aria-hidden', 'true');
-    this.el.appendChild(this.heroCar);
 
-    // Racing line SVG (shared-element transition)
+    // Racing line SVG — contained inside hero car, not overlaying entire screen
     this.racingLine = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.racingLine.setAttribute('class', 'racing-line');
     this.racingLine.setAttribute('width', '100%');
@@ -52,7 +54,7 @@ export class MainMenuScreen extends Screen {
     this.racingLine.style.width = '100%';
     this.racingLine.style.height = '100%';
     this.racingLine.style.pointerEvents = 'none';
-    this.racingLine.style.zIndex = '5';
+    this.racingLine.style.zIndex = '2';
     this.racingLine.innerHTML = `
       <path
         class="racing-line-path"
@@ -63,11 +65,8 @@ export class MainMenuScreen extends Screen {
         stroke-dashoffset="1000"
       />
     `;
-    this.el.appendChild(this.racingLine);
-
-    const wrap = document.createElement('div');
-    wrap.className = 'screen-inner menu-wrap';
-    wrap.style.alignItems = 'center';
+    this.heroCar.appendChild(this.racingLine);
+    wrap.appendChild(this.heroCar);
 
     const titleWrap = document.createElement('div');
     titleWrap.className = 'menu-title-wrap';
