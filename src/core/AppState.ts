@@ -18,7 +18,7 @@
  *   settings             settings                      idle
  *   garage               garage                        idle
  *   how-to-play          how-to-play                   idle
- *   gameplay             gameplay                      ready | racing
+ *   gameplay             gameplay                      ready | intro | racing
  *   gameover             — (results overlay)           gameover
  */
 
@@ -37,7 +37,7 @@ export type RouteId =
   | 'how-to-play';
 
 /** Live gameplay phase owned by StateMachine. */
-export type GamePhase = 'idle' | 'ready' | 'racing' | 'gameover';
+export type GamePhase = 'idle' | 'ready' | 'intro' | 'racing' | 'gameover';
 
 /** Combined authoring state. */
 export type AppState = RouteId | 'gameover';
@@ -57,12 +57,20 @@ export const ROUTE_GRAPH: Record<RouteId, RouteId[]> = {
   'how-to-play': ['menu'],
 };
 
-/** Valid gameplay-phase transitions. Invalid `set()` calls are ignored. */
+/**
+ * Valid gameplay-phase transitions. Invalid `set()` calls are ignored.
+ *
+ * `intro` is the deterministic pre-race state entered after `ready`: the
+ * camera/vehicle staging runs here and the countdown completes inside it.
+ * The pipeline's countdown completion is the only normal path that moves
+ * into `racing`.
+ */
 export const GAME_PHASE_GRAPH: Record<GamePhase, GamePhase[]> = {
   idle: ['ready', 'racing'],
-  ready: ['racing', 'idle', 'gameover'],
-  racing: ['gameover', 'idle', 'ready'],
-  gameover: ['idle', 'ready', 'racing'],
+  ready: ['intro', 'racing', 'idle', 'gameover'],
+  intro: ['racing', 'ready', 'idle', 'gameover'],
+  racing: ['gameover', 'idle', 'ready', 'intro'],
+  gameover: ['idle', 'ready', 'intro', 'racing'],
 };
 
 export function isRouteId(value: string): value is RouteId {
@@ -100,6 +108,6 @@ export function appStateFor(route: RouteId | null, phase: GamePhase): AppState {
 /** The route the racing phase maps onto (results overlay has no route). */
 export function phaseRoute(phase: GamePhase): RouteId | 'gameover' | null {
   if (phase === 'gameover') return 'gameover';
-  if (phase === 'ready' || phase === 'racing') return 'gameplay';
+  if (phase === 'ready' || phase === 'intro' || phase === 'racing') return 'gameplay';
   return null;
 }

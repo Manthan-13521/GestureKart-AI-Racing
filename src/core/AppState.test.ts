@@ -92,9 +92,11 @@ describe('Route graph', () => {
 describe('AppState combiner', () => {
   it('maps race phases onto the gameplay route / gameover', () => {
     expect(appStateFor('gameplay', 'ready')).toBe('gameplay');
+    expect(appStateFor('gameplay', 'intro')).toBe('gameplay');
     expect(appStateFor('gameplay', 'racing')).toBe('gameplay');
     expect(appStateFor('gameplay', 'gameover')).toBe('gameover');
     expect(phaseRoute('ready')).toBe('gameplay');
+    expect(phaseRoute('intro')).toBe('gameplay');
     expect(phaseRoute('racing')).toBe('gameplay');
     expect(phaseRoute('gameover')).toBe('gameover');
     expect(phaseRoute('idle')).toBeNull();
@@ -103,5 +105,41 @@ describe('AppState combiner', () => {
   it('combines a passive route with the idle phase', () => {
     expect(appStateFor('mode-select', 'idle')).toBe('mode-select');
     expect(appStateFor('menu', 'idle')).toBe('menu');
+  });
+});
+
+describe('P2.1/P2.2 pre-race phase (intro)', () => {
+  it('walks ready → intro → racing through the validated machine', () => {
+    const sm = new StateMachine();
+    const seen: string[] = [];
+    sm.onChange((from, to) => seen.push(`${from}→${to}`));
+    sm.set('ready');
+    sm.set('intro');
+    sm.set('racing');
+    expect(seen).toEqual(['idle→ready', 'ready→intro', 'intro→racing']);
+    expect(sm.get()).toBe('racing');
+  });
+
+  it('intro can be aborted back to idle or the results overlay', () => {
+    const sm = new StateMachine();
+    sm.set('ready');
+    sm.set('intro');
+    sm.set('idle');
+    expect(sm.get()).toBe('idle');
+
+    sm.set('ready');
+    sm.set('intro');
+    sm.set('gameover');
+    expect(sm.get()).toBe('gameover');
+  });
+
+  it('skips invalid jumps into/out of intro', () => {
+    const sm = new StateMachine();
+    sm.set('intro'); // idle → intro is not an edge
+    expect(sm.get()).toBe('idle');
+    sm.set('ready');
+    sm.set('intro');
+    sm.set('ready'); // intro → ready allowed (fallback to staging)
+    expect(sm.get()).toBe('ready');
   });
 });
