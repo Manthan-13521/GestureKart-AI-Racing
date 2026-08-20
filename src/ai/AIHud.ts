@@ -13,11 +13,12 @@ export interface AIHudState {
   gapBehind: number | null; // seconds, null if no car behind
   draftZone: 'none' | 'entry' | 'optimal' | 'dirty' | 'cooldown';
   draftBonus: number; // 0–0.18 fraction
-  intent: string; // current AI of the car being chased (debug)
+  intent: string; // current AI of the car being chased
   isOvertaking: boolean;
   lapTime: number;
   lap: number;
   totalLaps: number;
+  opponentIdentity: { id: string; name: string } | null;
 }
 
 export class AIHud {
@@ -25,17 +26,24 @@ export class AIHud {
   private posEl: HTMLElement;
   private gapAheadEl: HTMLElement;
   private gapBehindEl: HTMLElement;
+  private draftEl: HTMLElement;
   private draftBarFill: HTMLElement;
   private draftLabel: HTMLElement;
   private overtakeFlash: HTMLElement;
   private lapEl: HTMLElement;
+  private oppEl: HTMLElement;
+  private oppNameEl: HTMLElement;
+  private oppIntentEl: HTMLElement;
+  private rankNumEl: HTMLElement;
+  private rankTotalEl: HTMLElement;
+  private gapAheadValEl: HTMLElement;
+  private gapBehindValEl: HTMLElement;
   private visible = false;
   private overtakeTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.container = document.createElement('div');
     this.container.id = 'ai-hud';
-    this.container.setAttribute('aria-live', 'polite');
     this.container.setAttribute('aria-label', 'Race positions');
     this.container.innerHTML = `
       <div class="ai-hud-position" id="ai-hud-pos">
@@ -62,16 +70,32 @@ export class AIHud {
       </div>
 
       <div class="ai-hud-lap" id="ai-hud-lap">LAP 1/2</div>
+
+      <div class="ai-hud-opp" id="ai-hud-opp">
+        <span class="ai-hud-opp-name" id="ai-hud-opp-name"></span>
+        <span class="ai-hud-opp-intent" id="ai-hud-opp-intent"></span>
+      </div>
+
       <div class="ai-hud-overtake-flash" id="ai-hud-overtake-flash">OVERTAKE!</div>
     `;
 
     this.posEl = this.container.querySelector('#ai-hud-pos')!;
     this.gapAheadEl = this.container.querySelector('#ai-hud-gap-ahead')!;
     this.gapBehindEl = this.container.querySelector('#ai-hud-gap-behind')!;
+    this.draftEl = this.container.querySelector('#ai-hud-draft')!;
     this.draftBarFill = this.container.querySelector('#ai-hud-draft-fill')!;
     this.draftLabel = this.container.querySelector('#ai-hud-draft-label')!;
     this.overtakeFlash = this.container.querySelector('#ai-hud-overtake-flash')!;
     this.lapEl = this.container.querySelector('#ai-hud-lap')!;
+    this.oppEl = this.container.querySelector('#ai-hud-opp')!;
+    this.oppNameEl = this.container.querySelector('#ai-hud-opp-name')!;
+    this.oppIntentEl = this.container.querySelector('#ai-hud-opp-intent')!;
+
+    // P7.3: cache child nodes once — no per-frame querySelector in update().
+    this.rankNumEl = this.container.querySelector('.ai-hud-rank-num')!;
+    this.rankTotalEl = this.container.querySelector('.ai-hud-rank-total')!;
+    this.gapAheadValEl = this.gapAheadEl.querySelector('.ai-hud-gap-val')!;
+    this.gapBehindValEl = this.gapBehindEl.querySelector('.ai-hud-gap-val')!;
 
     this.container.style.display = 'none';
     document.body.appendChild(this.container);
@@ -86,29 +110,25 @@ export class AIHud {
     if (!this.visible) return;
 
     // Position
-    const rankEl = this.posEl.querySelector('.ai-hud-rank-num')!;
-    const totalEl = this.posEl.querySelector('.ai-hud-rank-total')!;
-    rankEl.textContent = `P${state.position}`;
-    totalEl.textContent = `/${state.totalCars}`;
+    this.rankNumEl.textContent = `P${state.position}`;
+    this.rankTotalEl.textContent = `/${state.totalCars}`;
     this.posEl.setAttribute('data-pos', `${state.position}`);
 
     // Gap ahead
-    const gapAheadVal = this.gapAheadEl.querySelector('.ai-hud-gap-val')!;
     if (state.gapAhead !== null) {
-      gapAheadVal.textContent = `+${state.gapAhead.toFixed(2)}s`;
+      this.gapAheadValEl.textContent = `+${state.gapAhead.toFixed(2)}s`;
       this.gapAheadEl.classList.remove('ai-hud-gap--hidden');
     } else {
-      gapAheadVal.textContent = '—';
+      this.gapAheadValEl.textContent = '—';
       this.gapAheadEl.classList.add('ai-hud-gap--hidden');
     }
 
     // Gap behind
-    const gapBehindVal = this.gapBehindEl.querySelector('.ai-hud-gap-val')!;
     if (state.gapBehind !== null) {
-      gapBehindVal.textContent = `-${state.gapBehind.toFixed(2)}s`;
+      this.gapBehindValEl.textContent = `-${state.gapBehind.toFixed(2)}s`;
       this.gapBehindEl.classList.remove('ai-hud-gap--hidden');
     } else {
-      gapBehindVal.textContent = '—';
+      this.gapBehindValEl.textContent = '—';
       this.gapBehindEl.classList.add('ai-hud-gap--hidden');
     }
 
@@ -128,10 +148,31 @@ export class AIHud {
     // Lap
     this.lapEl.textContent = `LAP ${state.lap}/${state.totalLaps}`;
 
+    // Opponent identity + intent (long names truncate via CSS)
+    if (state.opponentIdentity) {
+      this.oppNameEl.textContent = state.opponentIdentity.name.toUpperCase();
+      this.oppIntentEl.textContent =
+        state.isOvertaking && state.intent ? `${state.intent} OVT` : (state.intent ?? '').toUpperCase();
+      this.oppEl.classList.remove('ai-hud-opp--hidden');
+    } else {
+      this.oppEl.classList.add('ai-hud-opp--hidden');
+    }
+
     // Overtake flash
     if (state.isOvertaking) {
       this.triggerOvertakeFlash();
     }
+  }
+
+  /**
+   * P7.3 — one-shot pulse on the draft meter when the player enters a
+   * drafting zone (driven by the RaceFeedbackWatcher; never called per frame).
+   */
+  pulseDraft(): void {
+    this.draftEl.classList.remove('pulse');
+    void this.draftEl.offsetWidth;
+    this.draftEl.classList.add('pulse');
+    window.setTimeout(() => this.draftEl.classList.remove('pulse'), 900);
   }
 
   private triggerOvertakeFlash(): void {

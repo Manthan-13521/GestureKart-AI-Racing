@@ -16,6 +16,8 @@ import type { EntityState } from './RaceEntity';
 import { makeMemory, decide } from './AIDecision';
 import type { AIMemory } from './AIDecision';
 import { computePerception } from './AIPerception';
+import { catchUpMultiplier } from './CatchUp';
+import { mulberry32 } from './AIIdentity';
 
 const SPEED_LERP = 0.06; // How quickly speed converges to desired
 const STEER_LERP = 0.04; // How quickly X converges to desired offset
@@ -105,17 +107,22 @@ export class AICar extends RaceEntity {
 
   private totalTrackDistance: number;
   private raceTime = 0;
+  private readonly rng: () => number;
+  /** Cumulative distance of the race leader (null until first tick). */
+  private packLeaderDistance: number | null = null;
 
   constructor(
     id: string,
     pers: Personality,
     startDistance: number,
     totalTrackDistance: number,
-    scene: THREE.Scene
+    scene: THREE.Scene,
+    seed: number = 1
   ) {
     super(id, { isPlayer: false, isAI: true, isGhost: false });
     this.pers = pers;
-    this.mem = makeMemory();
+    this.rng = mulberry32(seed);
+    this.mem = makeMemory(this.rng);
     this.totalTrackDistance = totalTrackDistance;
 
     this._state.distance = startDistance;
@@ -137,6 +144,15 @@ export class AICar extends RaceEntity {
   }
 
   /**
+   * Supply the race leader's cumulative distance so this car can
+   * receive a rubber-band pace bonus when it falls far behind the
+   * pack. Only affects AI cars — never the player.
+   */
+  setPackLeader(leaderDistance: number): void {
+    this.packLeaderDistance = leaderDistance;
+  }
+
+  /**
    * update() drives the entity's logical state.
    * @param dt Delta time in SECONDS.
    * @param others All other entity snapshots this frame.
@@ -148,9 +164,17 @@ export class AICar extends RaceEntity {
     const perc = computePerception(this._state, others, this.totalTrackDistance, this.mem.draftCooldown);
 
     // ─── Decision ──────────────────────────────────────────────────
-    const action = decide(perc, this.pers, this.mem, this.raceTime, this.playerSpeed, dt);
+    const action = decide(perc, this.pers, this.mem, this.raceTime, this.playerSpeed, dt, this.rng);
 
-    this._desiredSpeed = action.desiredSpeed;
+    // Rubber-band catch-up: multiply desired speed when far behind the leader.
+    // Flows through the existing speed lerp — bounded and smooth, never teleports.
+    let desiredSpeed = action.desiredSpeed;
+    if (this.packLeaderDistance !== null) {
+      const gap = Math.max(0, this.packLeaderDistance - this._state.distance);
+      desiredSpeed *= catchUpMultiplier(gap);
+    }
+
+    this._desiredSpeed = desiredSpeed;
     this._desiredOffset = action.desiredOffset;
 
     const boostBonus = action.boost ? BOOST_SPEED_BONUS * dt : 0;
@@ -186,6 +210,52 @@ export class AICar extends RaceEntity {
     this.mesh.position.y = 0;
   }
 
+  /** GDD identity id (blaze/shield/vector/risky/chameleon/comet). */
+  get identityId(): string {
+    return this.pers.id;
+  }
+
+  /** GDD identity display name (Blaze, Shield, …). */
+  get identityName(): string {
+    return this.pers.name;
+  }
+
+  /** Current AI intent and overtake state for HUD telemetry. */
+  getHUDIntent(): { intent: string; isOvertaking: boolean } {
+    // Infer from memory state without re-running perception/decision
+    const mem = this.mem;
+    let intent = 'cruise';
+    let isOvertaking = false;
+
+    if (mem.mistakeDuration > 0) {
+      intent = 'mistake';
+    } else if (mem.overtakePhase !== 'none' && mem.overtakeTimer > 0) {
+      intent = 'overtake';
+      isOvertaking = true;
+    } else if (mem.draftCooldown > 0) {
+      // If draft cooldown active, likely was drafting recently
+      intent = 'draft';
+    }
+    // Could add more inference (block, attack, etc.) but cruise is default
+
+    return { intent, isOvertaking };
+  }
+
+  /** Test helper: set distance directly. */
+  setDistanceForTest(d: number): void {
+    this._state.distance = d;
+  }
+
+  /** Test helper: set x position directly. */
+  setXForTest(x: number): void {
+    this._state.x = x;
+  }
+
+  /** Test helper: set memory state directly. */
+  setMemoryForTest(key: keyof AIMemory, value: unknown): void {
+    (this.mem as unknown as Record<string, unknown>)[key] = value;
+  }
+
   /** True when the car has scrolled past the camera. */
   isBehindCamera(): boolean {
     return this.mesh.position.z > 14;
@@ -193,5 +263,17 @@ export class AICar extends RaceEntity {
 
   dispose(scene: THREE.Scene): void {
     scene.remove(this.mesh);
+    this.mesh.traverse((child) => {
+      const mesh = child as THREE.Mesh;
+      if (mesh.isMesh) {
+        if (mesh.geometry) mesh.geometry.dispose();
+        const material = mesh.material;
+        if (Array.isArray(material)) {
+          for (const m of material) m.dispose();
+        } else if (material) {
+          material.dispose();
+        }
+      }
+    });
   }
 }

@@ -1,14 +1,29 @@
 /**
- * AIPersonality — data-driven AI archetypes.
+ * AIPersonality — bridge between the GDD identity model and the AI engine.
  *
- * Each personality owns a full set of coefficients. No branching in
- * the decision loop — the personality constants do the heavy lifting.
- * Add new personalities simply by extending this object.
+ * P5.1: The engine's Personality type is retained verbatim (AIDecision/AICar
+ * depend on it). What changed is the SOURCE: personalities are now derived
+ * from the six GDD identities via identityFingerprint() + toEnginePersonality(),
+ * and buildGrid() assigns identities per difficulty tier with deterministic
+ * seeds instead of the old scalar difficulty bands.
  */
-export type PersonalityId = 'smooth' | 'aggressive' | 'defensive' | 'erratic' | 'tactical' | 'rookie';
 
+import {
+  IDENTITY_FINGERPRINTS,
+  IDENTITY_NAMES,
+  TIER_DEFAULT_IDENTITIES,
+  TIER_PACE,
+  TIER_FORBIDS_MISTAKES,
+  isNormalized,
+  seedNoise,
+} from './AIIdentity';
+import type { DifficultyTier, IdentityFingerprint, IdentityId } from './AIIdentity';
+
+export type PersonalityId = IdentityId;
+
+/** The engine-facing personality. Shape is unchanged from before P5.1. */
 export interface Personality {
-  id: PersonalityId;
+  id: IdentityId;
   /** Display name shown in HUD / results. */
   name: string;
   /** Base speed relative to player max (0–1.2). */
@@ -25,108 +40,95 @@ export interface Personality {
   draftUsage: number;
   /** How fast the AI recovers from a mistake. */
   recoverySpeed: number;
-  /**
-   * How tightly the AI follows the "ideal" offset vs wandering slightly.
-   * 1 = laser-precise, 0 = loose.
-   */
+  /** How tightly the AI follows the "ideal" offset vs wandering slightly. */
   cornerConfidence: number;
   /** How quickly they reach max boost when available. */
   boostStrategy: number;
 }
 
-export const PERSONALITIES: Record<PersonalityId, Personality> = {
-  smooth: {
-    id: 'smooth',
-    name: 'Smooth',
-    speedFactor: 1.0,
-    reactionTime: 0.15,
-    aggression: 0.4,
-    mistakeRate: 0.004,
-    blockingFrequency: 0.2,
-    draftUsage: 0.9,
-    recoverySpeed: 0.8,
-    cornerConfidence: 0.95,
-    boostStrategy: 0.7,
-  },
-  aggressive: {
-    id: 'aggressive',
-    name: 'Aggressive',
-    speedFactor: 1.08,
-    reactionTime: 0.08,
-    aggression: 0.9,
-    mistakeRate: 0.012,
-    blockingFrequency: 0.8,
-    draftUsage: 0.6,
-    recoverySpeed: 0.9,
-    cornerConfidence: 0.75,
-    boostStrategy: 1.0,
-  },
-  defensive: {
-    id: 'defensive',
-    name: 'Defensive',
-    speedFactor: 0.94,
-    reactionTime: 0.25,
-    aggression: 0.1,
-    mistakeRate: 0.006,
-    blockingFrequency: 0.9,
-    draftUsage: 0.4,
-    recoverySpeed: 0.5,
-    cornerConfidence: 0.85,
-    boostStrategy: 0.3,
-  },
-  erratic: {
-    id: 'erratic',
-    name: 'Erratic',
-    speedFactor: 1.02,
-    reactionTime: 0.35,
-    aggression: 0.7,
-    mistakeRate: 0.04,
-    blockingFrequency: 0.5,
-    draftUsage: 0.3,
-    recoverySpeed: 0.7,
-    cornerConfidence: 0.5,
-    boostStrategy: 0.8,
-  },
-  tactical: {
-    id: 'tactical',
-    name: 'Tactical',
-    speedFactor: 1.05,
-    reactionTime: 0.12,
-    aggression: 0.6,
-    mistakeRate: 0.002,
-    blockingFrequency: 0.6,
-    draftUsage: 1.0,
-    recoverySpeed: 0.95,
-    cornerConfidence: 1.0,
-    boostStrategy: 0.9,
-  },
-  rookie: {
-    id: 'rookie',
-    name: 'Rookie',
-    speedFactor: 0.82,
-    reactionTime: 0.5,
-    aggression: 0.2,
-    mistakeRate: 0.025,
-    blockingFrequency: 0.1,
-    draftUsage: 0.1,
-    recoverySpeed: 0.3,
-    cornerConfidence: 0.6,
-    boostStrategy: 0.2,
-  },
-};
+const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
 
 /**
- * Return a grid of personalities tuned to a 0–1 difficulty setting.
- * Easy: rookies + one defensive.
- * Hard: tactical + aggressive + smooth mix.
+ * Map a GDD identity fingerprint to engine personality coefficients.
+ * Each GDD §9.2 parameter maps to one or two engine fields:
+ *   aggression   → aggression, blockingFrequency (scaled)
+ *   consistency  → recoverySpeed, reactionTime
+ *   braking      → reactionTime (braking discipline lowers reaction lag)
+ *   cornering    → cornerConfidence
+ *   boostSense   → boostStrategy
+ *   mistakeFreq  → mistakeRate (suppressed for Expert tier per GDD §9.4)
+ *   draftSkill   → draftUsage
  */
-export function buildGrid(count: number, difficulty: number): Personality[] {
-  const pool: PersonalityId[] =
-    difficulty < 0.35
-      ? ['rookie', 'rookie', 'defensive', 'erratic', 'smooth', 'defensive']
-      : difficulty < 0.65
-        ? ['defensive', 'smooth', 'erratic', 'tactical', 'aggressive', 'smooth']
-        : ['tactical', 'aggressive', 'smooth', 'aggressive', 'tactical', 'aggressive'];
+export function toEnginePersonality(
+  id: IdentityId,
+  fp: IdentityFingerprint,
+  tier: DifficultyTier,
+  seed: number
+): Personality {
+  const noise = seedNoise(fp, seed, 0.02);
+  const pace = TIER_PACE[tier];
+  const forbidsMistakes = TIER_FORBIDS_MISTAKES[tier];
 
-  return Array.from({ length: count }, (_, i) => PERSONALITIES[pool[i % pool.length]]);
+  return {
+    id,
+    name: IDENTITY_NAMES[id],
+    // Base pace from fingerprint skill + tier multiplier. Blaze/Vector are
+    // faster than Comet/Shield; Expert tier (Vector) is genuinely stronger.
+    speedFactor: clamp01((0.55 + noise.cornering * 0.25 + noise.consistency * 0.25) * pace),
+    reactionTime: clamp01(0.55 - noise.braking * 0.35 - noise.consistency * 0.05),
+    aggression: clamp01(noise.aggression),
+    mistakeRate: forbidsMistakes ? 0 : clamp01(noise.mistakeFreq),
+    blockingFrequency: clamp01(noise.aggression * 0.7 + (id === 'shield' ? 0.3 : 0)),
+    draftUsage: clamp01(noise.draftSkill),
+    recoverySpeed: clamp01(0.4 + noise.consistency * 0.6),
+    cornerConfidence: clamp01(noise.cornering),
+    boostStrategy: clamp01(noise.boostSense),
+  };
 }
+
+/**
+ * Static baseline personalities for each identity (no per-race noise, medium
+ * tier). Useful for tests and HUD identity display.
+ */
+export const PERSONALITIES: Record<IdentityId, Personality> = (
+  Object.keys(IDENTITY_FINGERPRINTS) as IdentityId[]
+).reduce(
+  (acc, id) => {
+    acc[id] = toEnginePersonality(id, IDENTITY_FINGERPRINTS[id], 'medium', 0);
+    return acc;
+  },
+  {} as Record<IdentityId, Personality>
+);
+
+export const ALL_PERSONALITIES: Personality[] = (Object.keys(PERSONALITIES) as IdentityId[]).map(
+  (id) => PERSONALITIES[id]
+);
+
+/**
+ * Build a deterministic AI grid for a difficulty tier.
+ * @param count Number of AI cars in the grid.
+ * @param tier Difficulty tier (easy/medium/hard/expert/adaptive).
+ * @param seed Deterministic seed; same inputs ⇒ same grid.
+ * @param chameleonOverride Optional fingerprint for Chameleon (e.g. an adapted
+ *        fingerprint from ChameleonAdapter). Defaults to the baseline.
+ */
+export function buildGrid(
+  count: number,
+  tier: DifficultyTier = 'medium',
+  seed = 1,
+  chameleonOverride?: IdentityFingerprint
+): Personality[] {
+  const ids = TIER_DEFAULT_IDENTITIES[tier];
+  const grid: Personality[] = [];
+
+  for (let i = 0; i < count; i++) {
+    const id = ids[i % ids.length];
+    const base = id === 'chameleon' && chameleonOverride ? chameleonOverride : IDENTITY_FINGERPRINTS[id];
+    // Deterministic per-slot seed: derived from grid seed + slot index.
+    grid.push(toEnginePersonality(id, seedNoise(base, seed * 31 + i), tier, seed * 31 + i));
+  }
+  return grid;
+}
+
+/** Convenience validation used by tests. */
+export { isNormalized };

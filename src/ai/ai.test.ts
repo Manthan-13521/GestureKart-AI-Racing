@@ -93,7 +93,7 @@ describe('computePerception', () => {
 
 describe('decide', () => {
   it('returns cruise intent in normal conditions', () => {
-    const pers = PERSONALITIES['smooth'];
+    const pers = PERSONALITIES['vector'];
     const mem = makeMemory();
 
     const perc = computePerception(
@@ -108,7 +108,7 @@ describe('decide', () => {
   });
 
   it('mistake lowers desired speed', () => {
-    const pers = PERSONALITIES['erratic'];
+    const pers = PERSONALITIES['comet'];
     const mem = makeMemory();
     mem.mistakeDuration = 0.5; // currently in a mistake
 
@@ -120,7 +120,7 @@ describe('decide', () => {
   });
 
   it('overtake when car is close ahead and aggressive', () => {
-    const pers = PERSONALITIES['aggressive'];
+    const pers = PERSONALITIES['blaze'];
     const mem = makeMemory();
     mem.lastMistakeTime = -999; // no recent mistake
 
@@ -143,7 +143,7 @@ describe('decide', () => {
   });
 
   it('clamped offset stays within track bounds', () => {
-    const pers = PERSONALITIES['erratic'];
+    const pers = PERSONALITIES['risky'];
     for (let i = 0; i < 50; i++) {
       const mem = makeMemory();
       const perc = computePerception(makeEntity('ai-0', 0, 100, 1.0), [], 2400, 0);
@@ -156,7 +156,7 @@ describe('decide', () => {
   it('draft cooldown decrements each tick', () => {
     const mem = makeMemory();
     mem.draftCooldown = 1.0;
-    const pers = PERSONALITIES['tactical'];
+    const pers = PERSONALITIES['chameleon'];
     const perc = computePerception(makeEntity('ai-0', 0, 100, 1.0), [], 2400, mem.draftCooldown);
     decide(perc, pers, mem, 10, 1.0, 0.1);
     expect(mem.draftCooldown).toBeCloseTo(0.9, 1);
@@ -167,26 +167,55 @@ describe('decide', () => {
 
 describe('buildGrid', () => {
   it('returns the correct number of personalities', () => {
-    expect(buildGrid(5, 0.5)).toHaveLength(5);
-    expect(buildGrid(3, 0)).toHaveLength(3);
+    expect(buildGrid(5, 'medium')).toHaveLength(5);
+    expect(buildGrid(3, 'easy')).toHaveLength(3);
   });
 
-  it('easy difficulty uses rookie/defensive personalities', () => {
-    const grid = buildGrid(6, 0.1);
+  it('easy difficulty uses Comet/Shield personalities', () => {
+    const grid = buildGrid(6, 'easy');
     const ids = grid.map((p) => p.id);
-    expect(ids.some((id) => id === 'rookie' || id === 'defensive')).toBe(true);
+    expect(ids.some((id) => id === 'comet' || id === 'shield')).toBe(true);
   });
 
-  it('hard difficulty uses tactical/aggressive personalities', () => {
-    const grid = buildGrid(6, 0.9);
+  it('hard difficulty uses Blaze/Vector personalities', () => {
+    const grid = buildGrid(6, 'hard');
     const ids = grid.map((p) => p.id);
-    expect(ids.some((id) => id === 'tactical' || id === 'aggressive')).toBe(true);
+    expect(ids.some((id) => id === 'blaze' || id === 'vector')).toBe(true);
+  });
+
+  it('expert tier never randomly mistakes', () => {
+    const grid = buildGrid(6, 'expert');
+    for (const p of grid) {
+      expect(p.mistakeRate).toBe(0);
+    }
   });
 
   it('all personalities have valid speed factors', () => {
     for (const p of Object.values(PERSONALITIES)) {
       expect(p.speedFactor).toBeGreaterThan(0);
       expect(p.speedFactor).toBeLessThanOrEqual(1.2);
+    }
+  });
+
+  it('same seed produces the same grid (deterministic)', () => {
+    const a = buildGrid(6, 'medium', 42);
+    const b = buildGrid(6, 'medium', 42);
+    expect(a.map((p) => p.id)).toEqual(b.map((p) => p.id));
+    expect(a.map((p) => p.speedFactor)).toEqual(b.map((p) => p.speedFactor));
+    expect(a.map((p) => p.aggression)).toEqual(b.map((p) => p.aggression));
+  });
+
+  it('different seeds produce variation', () => {
+    const a = buildGrid(6, 'medium', 1);
+    const b = buildGrid(6, 'medium', 2);
+    expect(a.map((p) => p.speedFactor)).not.toEqual(b.map((p) => p.speedFactor));
+  });
+
+  it('grid personalities are drawn from the six GDD identities', () => {
+    const grid = buildGrid(6, 'medium', 7);
+    const valid = ['blaze', 'shield', 'vector', 'risky', 'chameleon', 'comet'];
+    for (const p of grid) {
+      expect(valid).toContain(p.id);
     }
   });
 });
