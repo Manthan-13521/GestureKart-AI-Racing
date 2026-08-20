@@ -29,4 +29,31 @@ describe('ThemeManager', () => {
     expect(tm.reducedMotion).toBe(true);
     expect(tm.get().highContrast).toBe(false);
   });
+
+  it('maps a colorblind boolean to the deuteranopia preset', () => {
+    const tm = new ThemeManager({ colorblind: true });
+    expect(tm.colorblindMode).toBe('deuteranopia');
+    expect(tm.get().colorblind).toBe(true);
+    expect(document.documentElement.dataset.colorblindMode).toBe('deuteranopia');
+    expect(document.documentElement.dataset.colorblind).toBe('true');
+  });
+
+  it('applies named colorblind presets and clears on none', () => {
+    const tm = new ThemeManager();
+    tm.set({ colorblindMode: 'protanopia' });
+    expect(tm.colorblindMode).toBe('protanopia');
+    expect(tm.get().colorblind).toBe(true);
+    expect(document.documentElement.dataset.colorblindMode).toBe('protanopia');
+
+    tm.set({ colorblindMode: 'none' });
+    expect(tm.colorblindMode).toBe('none');
+    expect(tm.get().colorblind).toBe(false);
+    expect(document.documentElement.dataset.colorblind).toBe('false');
+  });
+
+  it('coerces unknown colorblind modes to none', () => {
+    const tm = new ThemeManager({ colorblindMode: 'garbage' as never });
+    expect(tm.colorblindMode).toBe('none');
+    expect(document.documentElement.dataset.colorblind).toBe('false');
+  });
 });
