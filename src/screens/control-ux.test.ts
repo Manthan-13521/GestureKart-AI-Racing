@@ -35,10 +35,17 @@ vi.mock('../ui/core/SoundHooks', () => ({
 function makeSettings(): FlowApi['settings'] {
   return {
     get: () => ({
-      a11y: { highContrast: false, colorblind: false, largeHud: false, reducedMotion: false },
+      a11y: {
+        highContrast: false,
+        colorblind: false,
+        colorblindMode: 'none',
+        largeHud: false,
+        reducedMotion: false,
+      },
       sensitivity: 75,
       autoAccelerate: false,
       gyroscopeMode: false,
+      oneHand: false,
       graphicsQuality: 'balanced' as const,
       shadows: true,
       particles: true,
@@ -46,7 +53,6 @@ function makeSettings(): FlowApi['settings'] {
       uiSounds: true,
     }),
     save: vi.fn(),
-    calibrateGesture: vi.fn(),
     onBack: vi.fn(),
   };
 }
@@ -71,6 +77,9 @@ function buildNav(container: HTMLElement): NavigationSystem {
     settings: makeSettings(),
     garage: { onBack: vi.fn() } as never,
     howToPlay: { onBack: vi.fn() } as never,
+    achievements: { onBack: vi.fn() } as never,
+    profile: { onBack: vi.fn() } as never,
+    leaderboard: { onBack: vi.fn() } as never,
     phone: makePhone(),
     startRace: vi.fn(),
   });

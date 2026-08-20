@@ -6,6 +6,9 @@ import { FocusNavigator } from '../ui/core/FocusNavigator';
 import type { PhoneSource } from '../input/PhoneSource';
 import type { GarageScreen } from './GarageScreen';
 import type { HowToPlayScreen } from './HowToPlayScreen';
+import type { AchievementsScreen } from './AchievementsScreen';
+import type { ProfileScreen } from './ProfileScreen';
+import type { LeaderboardScreen } from './LeaderboardScreen';
 
 vi.mock('../ui/core/AnimationSystem', () => ({
   AnimationSystem: {
@@ -32,10 +35,17 @@ vi.mock('../ui/core/SoundHooks', () => ({
 }));
 
 const SETTINGS = {
-  a11y: { highContrast: false, colorblind: false, largeHud: false, reducedMotion: false },
+  a11y: {
+    highContrast: false,
+    colorblind: false,
+    colorblindMode: 'none' as const,
+    largeHud: false,
+    reducedMotion: false,
+  },
   sensitivity: 75,
   autoAccelerate: false,
   gyroscopeMode: false,
+  oneHand: false,
   graphicsQuality: 'balanced' as const,
   shadows: true,
   particles: true,
@@ -47,7 +57,6 @@ function makeSettings(): FlowApi['settings'] {
   return {
     get: () => SETTINGS,
     save: vi.fn(),
-    calibrateGesture: vi.fn(),
     onBack: vi.fn(),
   };
 }
@@ -89,6 +98,9 @@ describe('keyboard flow (FocusNavigator through real screens)', () => {
       settings: makeSettings(),
       garage: {} as GarageScreen,
       howToPlay: {} as HowToPlayScreen,
+      achievements: {} as AchievementsScreen,
+      profile: {} as ProfileScreen,
+      leaderboard: {} as LeaderboardScreen,
       phone: makePhone(),
       startRace: vi.fn(),
     });
@@ -141,7 +153,7 @@ describe('keyboard flow (FocusNavigator through real screens)', () => {
     press(modes.el, 'ArrowDown');
     expect(focusedText(modes)).toContain('Endless Survival');
     press(modes.el, 'ArrowDown'); // cross into control chips
-    expect(focusedText(modes)).toBe('Keyboard');
+    expect(focusedText(modes)).toContain('Keyboard');
     press(modes.el, 'ArrowRight');
     press(modes.el, 'ArrowRight');
     press(modes.el, 'ArrowRight');

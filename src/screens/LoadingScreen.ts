@@ -15,6 +15,7 @@ export interface LoadingScreenParams {
 export class LoadingScreen extends Screen {
   private progress = 0;
   private raf: number | null = null;
+  private tick: () => void = () => {};
   onDone: (() => void) | null = null;
 
   constructor() {
@@ -38,19 +39,28 @@ export class LoadingScreen extends Screen {
 
     void AnimationSystem.play(loading.el, 'scale-in', { duration: 420 });
 
-    const tick = (): void => {
+    this.tick = (): void => {
       const next = onProgress?.(this.progress) ?? this.progress + 0.04;
       this.progress = Math.min(1, next);
       loading.setProgress(this.progress);
       if (this.progress < 1) {
-        this.raf = requestAnimationFrame(tick);
+        this.raf = requestAnimationFrame(this.tick);
       } else {
         loading.setLabel('Ready');
         this.raf = null;
         this.onDone?.();
       }
     };
-    this.raf = requestAnimationFrame(tick);
+  }
+
+  /**
+   * Start advancing progress only once the enter transition has finished.
+   * `build()` runs before the mount swap completes, so starting the rAF tick
+   * there can fire `onDone` while `NavigationSystem.navigating` is still true —
+   * the resulting `nav.go()` would be dropped and the app stranded here.
+   */
+  override onAfterEnter(): void {
+    this.raf = requestAnimationFrame(this.tick);
   }
 
   override dispose(): void {

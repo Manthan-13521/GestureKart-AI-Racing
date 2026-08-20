@@ -9,6 +9,9 @@ import { GameplayScreen } from './GameplayScreen';
 import { SettingsScreen, type SettingsApi } from './SettingsScreen';
 import { GarageScreen } from './GarageScreen';
 import { HowToPlayScreen } from './HowToPlayScreen';
+import { AchievementsScreen } from './AchievementsScreen';
+import { ProfileScreen } from './ProfileScreen';
+import { LeaderboardScreen } from './LeaderboardScreen';
 import { PhoneControllerScreen } from './PhoneControllerScreen';
 import type { PhoneSource } from '../input/PhoneSource';
 import { GAME_MODES, isSourceAllowed } from '../game/GameModeConfig';
@@ -18,6 +21,9 @@ export interface FlowApi {
   settings: SettingsApi;
   garage: GarageScreen;
   howToPlay: HowToPlayScreen;
+  achievements: AchievementsScreen;
+  profile: ProfileScreen;
+  leaderboard: LeaderboardScreen;
   phone: PhoneSource;
   startRace: (
     trackId: TrackId,
@@ -104,8 +110,14 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
       screen.onSettings = () => void nav.go('settings');
       screen.onGarage = () => void nav.go('garage');
       screen.onHowToPlay = () => void nav.go('how-to-play');
-      api.garage.onBack = () => void nav.go('menu');
-      api.howToPlay.onBack = () => void nav.go('menu');
+      screen.onAchievements = () => void nav.go('achievements');
+      screen.onProfile = () => void nav.go('profile');
+      screen.onLeaderboard = () => void nav.go('leaderboard');
+      api.garage.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      api.howToPlay.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      api.achievements.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      api.profile.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      api.leaderboard.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
       return screen;
     },
   });
@@ -206,6 +218,30 @@ export function buildFlow(nav: NavigationSystem, api: FlowApi): void {
   nav.register('how-to-play', {
     create: () => {
       const screen = api.howToPlay;
+      screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('achievements', {
+    create: () => {
+      const screen = api.achievements;
+      screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('profile', {
+    create: () => {
+      const screen = api.profile;
+      screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
+      return screen;
+    },
+  });
+
+  nav.register('leaderboard', {
+    create: () => {
+      const screen = api.leaderboard;
       screen.onBack = () => void nav.go('menu', {}, { transition: 'slide-right' });
       return screen;
     },
