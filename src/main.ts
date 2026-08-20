@@ -4,10 +4,14 @@ import { Game, GameState } from './game/Game';
 import { AppEvents, EventBus } from './core/EventBus';
 import { StateMachine } from './core/StateMachine';
 import type { GamePhase } from './core/AppState';
+import { Countdown } from './core/Countdown';
+import { RaceIntro, type RaceIntroTarget } from './core/RaceIntro';
+import { RaceStartPipeline } from './core/RaceStartPipeline';
 import { ResourceManager } from './managers/ResourceManager';
 import { AudioManager } from './managers/AudioManager';
 import { SaveManager } from './managers/SaveManager';
 import { InputManager } from './managers/InputManager';
+import { FrameBudgetScaler, resolveQualityConfig } from './managers/QualityManager';
 import { PhoneSource, type PhoneStatePayload } from './input/PhoneSource';
 import { HandSource } from './input/sources/HandSource';
 import { centerFromSteer, handsFromThrottle } from './input/InputFrame';
@@ -21,6 +25,17 @@ import { ThemeManager } from './ui/ThemeManager';
 import { buildFlow, lastSelection, type FlowApi } from './screens/flow';
 import { ReplayRuntime, GhostHud } from './replay';
 import type { ReplayOutcome } from './replay';
+import { InputReplayRecorder } from './replay/input/recorder';
+import { ReplayInputSource } from './replay/input/source';
+import { validateInputReplay, type InputReplayData } from './replay/input/types';
+import {
+  stepFreeCamera,
+  lookFreeCamera,
+  slowMoDelta,
+  VIEWER_DEFAULTS,
+  type FreeCameraState,
+  type ViewerKeys,
+} from './replay/viewer';
 import type { TrackId } from './screens/TrackSelectScreen';
 import type { ModeId } from './screens/ModeSelectScreen';
 import { GAME_MODES, raceModeFor } from './game/GameModeConfig';
@@ -28,10 +43,30 @@ import { AIRuntime } from './ai/AIRuntime';
 import { AIHud } from './ai/AIHud';
 import { RaceDirector } from './game/RaceDirector';
 import { tournamentManager } from './game/TournamentManager';
+import type { DivisionId } from './game/TournamentManager';
 import { victoryCeremony } from './ui/VictoryCeremony';
+import type { DifficultyTier } from './ai/AIIdentity';
+import { chameleonAdapter } from './ai/ChameleonAdapter';
 import type { NetworkManager } from './network/NetworkManager';
 import { RemotePlayerManager } from './network/RemotePlayerManager';
-import './ui/ui.css';
+import { RaceFeedbackWatcher } from './ui/RaceFeedbackWatcher';
+import { RaceResultGate } from './progression/RaceResultGate';
+
+/** Maps a tournament division to an AI difficulty tier (GDD §9.3). */
+function tierForDivision(division: DivisionId): DifficultyTier {
+  switch (division) {
+    case 'rookie':
+      return 'easy';
+    case 'pro':
+      return 'medium';
+    case 'elite':
+      return 'hard';
+    case 'champion':
+      return 'expert';
+    default:
+      return 'medium';
+  }
+}
 
 // ─── Core systems ──────────────────────────────────────────────────
 const resources = new ResourceManager();
@@ -46,6 +81,9 @@ inputManager.registerSource(phoneSource);
 inputManager.registerSource(handSource);
 const ui = new UIManager();
 const themeManager = new ThemeManager(saveManager.a11y);
+
+// Storm lightning edge-detect (GDD §12.2).
+let lastWeatherKind: string = 'clear';
 
 // ─── DOM refs ───────────────────────────────────────────────────────
 const navTitle = document.querySelector('.nav-title') as HTMLElement;
@@ -89,24 +127,48 @@ const hudSpeed = document.getElementById('hud-speed')!;
 const hudGear = document.getElementById('hud-gear')!;
 const speedArc = document.getElementById('speed-arc')!;
 
+// P4: Combo & Boost HUD
+const hudCombo = document.getElementById('hud-combo')!;
+const hudComboVal = document.getElementById('hud-combo-val')!;
+const hudComboRingFill = document.getElementById('hud-combo-ring-fill');
+const hudBoost = document.getElementById('hud-boost')!;
+const hudBoostFill = document.getElementById('hud-boost-fill')!;
+const hudBoostLabel = document.getElementById('hud-boost-label')!;
+
 const statusAuto = document.getElementById('status-auto')!;
 const statusAutoDot = document.getElementById('status-auto-dot')!;
 const statusPhone = document.getElementById('status-phone')!;
 const speedVignette = document.getElementById('speed-vignette')!;
 const collisionFlash = document.getElementById('collision-flash')!;
+const nearMissGlow = document.getElementById('near-miss-glow')!;
+
+// P7.3: one-shot race-state feedback elements
+const raceFlash = document.getElementById('race-flash')!;
+const posChangePop = document.getElementById('pos-change-pop')!;
+const posChangePopNum = document.getElementById('pos-change-pop-num')!;
+const posChangePopArrow = document.getElementById('pos-change-pop-arrow')!;
+const hudPositionChip = document.getElementById('hud-position-chip')!;
 
 const resultsRetry = document.getElementById('results-retry')!;
 const resultsReplay = document.getElementById('results-replay')!;
 const resultsMenu = document.getElementById('results-menu')!;
 const resultsGhostLine = document.getElementById('results-ghost-line')!;
+const resultsWatchReplay = document.getElementById('results-watch-replay')!;
+const replayActiveStrip = document.getElementById('replay-active-strip')!;
+const replayActiveExit = document.getElementById('replay-active-exit')!;
+const replayCompletePanel = document.getElementById('replay-complete-panel')!;
+const replayCompleteMenu = document.getElementById('replay-complete-menu')!;
 
 const replayOverlay = document.getElementById('replay-overlay')!;
 const replayClose = document.getElementById('replay-close')!;
 const replayCamChase = document.getElementById('replay-cam-chase')!;
 const replayCamOrbit = document.getElementById('replay-cam-orbit')!;
 const replayCamCine = document.getElementById('replay-cam-cine')!;
+const replayCamFree = document.getElementById('replay-cam-free')!;
+const replaySlowMo = document.getElementById('replay-slow-mo')!;
 const replayFilterGrain = document.getElementById('replay-filter-grain') as HTMLInputElement;
 const replayFilterContrast = document.getElementById('replay-filter-contrast') as HTMLInputElement;
+const replayFilterFocus = document.getElementById('replay-filter-focus') as HTMLInputElement;
 const replayPhoto = document.getElementById('replay-photo')!;
 
 const touchAuto = document.getElementById('touch-auto')!;
@@ -126,17 +188,41 @@ let aiRuntime: AIRuntime | null = null;
 let aiHud: AIHud | null = null;
 let raceDirector: RaceDirector | null = null;
 let currentModeId: ModeId = 'survival';
+let currentTrackId: TrackId = 'cyber-city';
 let activeNetwork: NetworkManager | null = null;
 let remotePlayers: RemotePlayerManager | null = null;
+
+// P9: how the current race instance is executed. `replay` playback runs the
+// real game loop and can reach game-over, but is barred from progression,
+// persistence and tournament side effects (see the game-over handler).
+let raceExecutionMode: 'live' | 'replay' = 'live';
+
+// P9: session-only input replay (recorder → finished payload → playback
+// source). Never persisted, never written into any storage key.
+const inputReplayRecorder = new InputReplayRecorder();
+let activeInputReplay: InputReplayData | null = null;
+let replaySource: ReplayInputSource | null = null;
+let lastReplayStripSec = -1;
+
+// P8.2: single authoritative race-completion boundary. `currentRaceId` is the
+// idempotency key for the running race instance (see RaceResultGate).
+const raceResultGate = new RaceResultGate(profileManager, tournamentManager);
+let currentRaceId = '';
 
 // Multiplayer: throttle broadcast to ~20Hz
 let lastNetSendTime = 0;
 const NET_SEND_INTERVAL = 50; // ms
 
-// Countdown
-let countdownActive = false;
-let countdownInterval: ReturnType<typeof setInterval> | null = null;
+// ─── Race start (single authoritative pre-race pipeline) ──────────
+let pipeline: RaceStartPipeline | null = null;
 let isReplaying = false;
+
+// ─── P10: replay viewer camera state ──────────────────────────────
+let viewerCam: FreeCameraState = { ...VIEWER_DEFAULTS };
+let viewerSlowMo = false;
+let viewerDragging = false;
+let viewerLastPointerX = 0;
+let viewerLastPointerY = 0;
 
 let overlayFps = 0;
 let fpsCounter = 0;
@@ -353,6 +439,50 @@ function updateGameHUD(state: GameState): void {
   // Score (Tier 2)
   hudBest.textContent = `${Math.floor(state.score)}`;
 
+  // P4: Combo HUD (survival only)
+  if (state.comboMultiplier !== undefined && state.comboMultiplier > 1) {
+    hudCombo.classList.remove('hidden');
+    hudComboVal.textContent = `×${state.comboMultiplier}`;
+    // Pulse animation on multiplier change
+    if (hudCombo.dataset.prevMult !== String(state.comboMultiplier)) {
+      hudCombo.classList.add('pulse');
+      hudCombo.dataset.prevMult = String(state.comboMultiplier);
+    }
+    // Combo ring (GDD §6.7): fill arc tracks the multiplier up to ×5.
+    if (hudComboRingFill) {
+      const fill = Math.min(1, (state.comboMultiplier - 1) / 4);
+      hudComboRingFill.setAttribute('stroke-dashoffset', `${107 - fill * 107}`);
+      hudCombo.classList.toggle('max', state.comboMultiplier >= 5);
+    }
+  } else {
+    hudCombo.classList.add('hidden');
+    hudCombo.dataset.prevMult = '1';
+    if (hudComboRingFill) {
+      hudComboRingFill.setAttribute('stroke-dashoffset', '107');
+      hudCombo.classList.remove('max');
+    }
+  }
+
+  // P4: Boost HUD (survival only)
+  if (state.boostActive) {
+    hudBoost.classList.remove('hidden');
+    const pct = Math.max(0, state.boostTimeLeft / (state.boostMaxTime || 1.5));
+    hudBoostFill.style.width = `${pct * 100}%`;
+    hudBoostLabel.textContent = `BOOST ${Math.ceil(state.boostTimeLeft)}s`;
+  } else {
+    hudBoost.classList.add('hidden');
+  }
+
+  // P4: Near-miss toast (triggered via state change)
+  if (state.nearMissEvent && game) {
+    // Use NotificationSystem for toast
+    const notify = NotificationSystem.getInstance();
+    notify.notify('NEAR MISS', `+${state.nearMissEvent.reward}`, { kind: 'success' });
+    // Audio + glow (GDD §12.2 near-miss whoosh, §6.7 near-miss glow)
+    audioManager.playNearMiss();
+    fireOnce(nearMissGlow, 'nearmiss', 480);
+  }
+
   // Speed (Tier 1 — always visible)
   const speedKmh = game ? game.getSpeedKmh() : 0;
   hudSpeed.textContent = `${speedKmh}`;
@@ -413,6 +543,59 @@ function updateStatus(): void {
   statusPhone.className = `status-val ${phoneSource.phoneConnected ? '' : 'inactive'}`;
 }
 
+// ─── P7.3: Race-state feedback (presentation only) ─────────────────
+/**
+ * One-shot DOM effect: restart a CSS animation by class, auto-remove after
+ * the animation duration. Event-driven only — never called per frame.
+ */
+function fireOnce(el: HTMLElement, cls: string, duration: number): void {
+  el.classList.remove(cls);
+  void el.offsetWidth;
+  el.classList.add(cls);
+  window.setTimeout(() => el.classList.remove(cls), duration);
+}
+
+/** Position-change pop next to the standing chip. */
+function popPositionChange(to: number, gain: boolean): void {
+  posChangePopNum.textContent = `P${to}`;
+  posChangePopArrow.textContent = gain ? '▲' : '▼';
+  posChangePop.className = `pos-change-pop ${gain ? 'gain' : 'loss'}`;
+  void posChangePop.offsetWidth;
+  posChangePop.classList.add('pop');
+}
+
+/**
+ * Edge-detects race-state changes (position, first place, draft zones,
+ * boost activation, laps) and drives one-shot visual feedback. All triggers
+ * are derived — no race logic is touched.
+ */
+const raceFeedback = new RaceFeedbackWatcher({
+  onPositionChange: (from, to, dir) => {
+    if (!game || game.getState().gameOver) return;
+    popPositionChange(to, dir === 'gain');
+  },
+  onLeadChange: (leading) => {
+    hudPositionChip.classList.toggle('lead', leading);
+  },
+  onDraftEnter: () => {
+    aiHud?.pulseDraft();
+  },
+  onDraftExit: () => {
+    // Draft meter colors/labels already communicate the state change.
+  },
+  onBoostStart: () => {
+    fireOnce(raceFlash, 'boost', 600);
+    fireOnce(hudBoost, 'pulse', 600);
+    audioManager.playBoost();
+  },
+  onLapChange: (from, to, totalLaps) => {
+    fireOnce(hudLap, 'pulse', 700);
+    NotificationSystem.getInstance().notify(`LAP ${to}/${totalLaps}`, 'LAP COMPLETE', {
+      kind: 'info',
+    });
+  },
+});
+
 // ─── Auto-accelerate UI sync ───────────────────────────────────────
 function syncAutoUI(on: boolean): void {
   touchAuto.classList.toggle('active', on);
@@ -448,55 +631,209 @@ bus.on(AppEvents.phoneState, (st: PhoneStatePayload) => {
 stateMachine.onChange((from, to) => {
   ui.sync(to);
   if (to === 'gameover') {
+    // Audio lifecycle: stop the race music bed at the finish line.
+    audioManager.stopMusic();
     const state = game.getState();
     const score = Math.floor(state.score);
-    ui.finalScore.textContent = `${score}`;
-    saveManager.setBestScore(score);
 
-    const outcome = replayRuntime.finish(score, state.raceTime);
-    updateResultsGhostLine(outcome);
-    SoundHooks.raceFinish();
+    // ─── P9: replay playback reaching game-over ─────────────────────────
+    // A replay can execute the full loop and finish, but it must never
+    // produce progression, persistence, high-score or tournament side
+    // effects. RaceResultGate is never consulted here.
+    if (raceExecutionMode === 'replay') {
+      stopReplayPlayback();
+      replayActiveStrip.classList.add('hidden');
+      const ceremonyContainer = document.getElementById('results-ceremony-container');
+      if (ceremonyContainer) ceremonyContainer.classList.add('hidden');
+      const actions = document.querySelector<HTMLElement>('.results-actions');
+      if (actions) actions.classList.add('hidden');
+      replayCompletePanel.classList.toggle('visible', true);
+      // Defensive: ensure strip stays hidden after panel shows
+      replayActiveStrip.classList.add('hidden');
+      SoundHooks.raceFinish();
+    } else {
+      // ─── LIVE race: the only rewarded path ────────────────────────────
+      ui.finalScore.textContent = `${score}`;
+      saveManager.setBestScore(score);
 
-    const ceremonyContainer = document.getElementById('results-ceremony-container');
-    if (ceremonyContainer) {
-      if (GAME_MODES[currentModeId].features.ai) {
-        const finishPos = raceDirector ? raceDirector.getState().position : 6;
-        const res = tournamentManager.recordFinish(finishPos);
+      // P12: multiplayer race ended — release remote visuals now (the peer
+      // connection stays alive until the player returns to the menu).
+      if (remotePlayers) {
+        remotePlayers.dispose();
+        remotePlayers = null;
+      }
 
-        // Phase 8: Profile Progression
-        profileManager.addRewards(res.xpAwarded, res.coinsAwarded);
+      // Finalize the P9 input recording for this race (session-only).
+      activeInputReplay = inputReplayRecorder.finish(score, state.raceTime);
 
-        victoryCeremony.show(ceremonyContainer, {
-          position: finishPos,
-          pointsAwarded: res.pointsAwarded,
-          coinsAwarded: res.coinsAwarded,
-          xpAwarded: res.xpAwarded,
-          promoted: res.promoted,
-          finishedChampionship: res.finishedChampionship,
-          averageFinish: res.averageFinish,
-          division: tournamentManager.activeState.division,
-          nextTrackName: null,
-        });
+      const outcome = replayRuntime.finish(score, state.raceTime);
+      updateResultsGhostLine(outcome);
+      const isAIRace = GAME_MODES[currentModeId].features.ai;
+      const finishPos = raceDirector ? raceDirector.getState().position : isAIRace ? 6 : 0;
+      // GDD §12.2: distinct victory / defeat audio instead of the generic fanfare.
+      if (isAIRace) {
+        if (finishPos === 1) audioManager.playVictory();
+        else audioManager.playDefeat();
       } else {
-        // Reset to default standard results screen layout
-        ceremonyContainer.innerHTML = `
+        audioManager.playVictory();
+      }
+      SoundHooks.raceFinish();
+
+      // P8.2: the ONLY progression boundary for completed races. The gate
+      // awards rewards at most once per race instance no matter how many times
+      // this transition is observed (retry/re-entry/duplicate callbacks).
+      const gateOutcome = currentRaceId
+        ? raceResultGate.complete({
+            raceId: currentRaceId,
+            mode: currentModeId,
+            position: finishPos,
+            score,
+            division: isAIRace ? tournamentManager.activeState.division : null,
+          })
+        : null;
+      const completion = gateOutcome?.completion ?? null;
+
+      const ceremonyContainer = document.getElementById('results-ceremony-container');
+
+      if (ceremonyContainer) {
+        if (isAIRace) {
+          const finishPos = raceDirector ? raceDirector.getState().position : 6;
+          // Feed the Chameleon adapter so the Adaptive tier can recalibrate.
+          chameleonAdapter.recordRace({ position: finishPos, gridSize: 6 });
+
+          victoryCeremony.show(ceremonyContainer, {
+            position: finishPos,
+            pointsAwarded: gateOutcome?.tournament?.pointsAwarded ?? 0,
+            coinsAwarded: completion?.rewards.coins ?? 0,
+            xpAwarded: completion?.rewards.xp ?? 0,
+            promoted: gateOutcome?.tournament?.promoted ?? false,
+            finishedChampionship: gateOutcome?.tournament?.finishedChampionship ?? false,
+            averageFinish: gateOutcome?.tournament?.averageFinish ?? 0,
+            division: tournamentManager.activeState.division,
+            nextTrackName: null,
+            // P8.4: presentation straight from the gate outcome.
+            totalXp: completion?.xpAfter ?? 0,
+            totalCoins: completion?.coinsAfter ?? 0,
+            levelBefore: completion?.levelBefore ?? 1,
+            levelAfter: completion?.levelAfter ?? 1,
+            levelsGained: completion?.levelsGained ?? 0,
+            title: completion?.title ?? null,
+            unlocked: completion?.unlocked ?? [],
+          });
+        } else {
+          // P4c: Add score to high-score table
+          const state = game.getState();
+          saveManager.addHighScore({
+            score,
+            track: currentModeId === 'survival' ? 'endless' : currentModeId,
+            mode: currentModeId,
+            distance: state.playerDistance,
+            combo: state.comboStreak,
+          });
+
+          // Check if this is a new high score for this track/mode
+          const isNewRecord = saveManager.isHighScore(
+            score,
+            currentModeId === 'survival' ? 'endless' : currentModeId,
+            currentModeId
+          );
+          if (isNewRecord) SoundHooks.newRecord();
+
+          // Reset to default standard results screen layout
+          const rewardsXp = completion?.rewards.xp ?? 0;
+          const rewardsCoins = completion?.rewards.coins ?? 0;
+          const levelUpBlock =
+            (completion?.levelsGained ?? 0) > 0
+              ? `<div class="ceremony-levelup" role="status">
+                 <div class="ceremony-levelup-title">LEVEL UP!</div>
+                 <div class="ceremony-levelup-text">LEVEL ${completion?.levelBefore} → LEVEL ${completion?.levelAfter}</div>
+               </div>`
+              : '';
+          ceremonyContainer.innerHTML = `
           <div class="results-crown">&#127942;</div>
           <div class="results-title">RACE COMPLETE</div>
           <div class="results-score-row">
             <span class="results-label">SCORE</span>
             <span class="results-score" id="final-score">${score}</span>
+            ${isNewRecord ? '<span class="results-new-record">NEW RECORD!</span>' : ''}
           </div>
           <div class="results-ghost-line ${outcome.ghostPresent ? '' : 'hidden'}" id="results-ghost-line"></div>
+          <div class="results-highscores" id="results-highscores"></div>
+          <div class="results-rewards">
+            <div class="ceremony-grid">
+              <div class="ceremony-stat">
+                <div class="ceremony-stat-val">+${rewardsXp}</div>
+                <div class="ceremony-stat-lbl">XP</div>
+              </div>
+              <div class="ceremony-stat">
+                <div class="ceremony-stat-val">+${rewardsCoins}</div>
+                <div class="ceremony-stat-lbl">COINS</div>
+              </div>
+            </div>
+            <div class="ceremony-totals">
+              <div class="ceremony-total">
+                <div class="ceremony-total-val">${completion?.xpAfter ?? 0}</div>
+                <div class="ceremony-total-lbl">TOTAL XP</div>
+              </div>
+              <div class="ceremony-total">
+                <div class="ceremony-total-val">${completion?.coinsAfter ?? 0}</div>
+                <div class="ceremony-total-lbl">COIN BALANCE</div>
+              </div>
+            </div>
+            ${levelUpBlock}
+          </div>
         `;
-        // Make sure ghost line is correctly updated since we reset innerHTML
-        const gl = ceremonyContainer.querySelector('#results-ghost-line');
-        if (gl) {
-          gl.textContent = resultsGhostLine.textContent;
-          if (resultsGhostLine.classList.contains('hidden')) gl.classList.add('hidden');
-          else gl.classList.remove('hidden');
+          // Make sure ghost line is correctly updated since we reset innerHTML
+          const gl = ceremonyContainer.querySelector('#results-ghost-line');
+          if (gl) {
+            gl.textContent = resultsGhostLine.textContent;
+            if (resultsGhostLine.classList.contains('hidden')) gl.classList.add('hidden');
+            else gl.classList.remove('hidden');
+          }
+
+          // Render high-score table
+          const hsContainer = ceremonyContainer.querySelector('#results-highscores');
+          if (hsContainer) {
+            const trackId = currentModeId === 'survival' ? 'endless' : currentModeId;
+            const highScores = saveManager.getHighScores(trackId, currentModeId);
+            if (highScores.length > 0) {
+              const esc = (v: string | number): string =>
+                String(v).replace(/[&<>"']/g, (c) => {
+                  const m: Record<string, string> = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;',
+                  };
+                  return m[c] ?? c;
+                });
+              hsContainer.innerHTML = `
+              <div class="results-hs-title">HIGH SCORES</div>
+              <table class="results-hs-table">
+                <thead>
+                  <tr><th>RANK</th><th>SCORE</th><th>DATE</th></tr>
+                </thead>
+                <tbody>
+                  ${highScores
+                    .map(
+                      (hs, i) => `
+                    <tr class="${hs.timestamp === Date.now() ? 'new-record' : ''}">
+                      <td>#${i + 1}</td>
+                      <td>${esc(hs.score)}</td>
+                      <td>${esc(new Date(hs.timestamp).toLocaleDateString())}</td>
+                    </tr>
+                  `
+                    )
+                    .join('')}
+                </tbody>
+              </table>
+            `;
+            }
+          }
         }
       }
-    }
+    } // end LIVE race branch (P9 isolation)
 
     // Tear down AI race systems
     if (aiRuntime) {
@@ -512,16 +849,56 @@ stateMachine.onChange((from, to) => {
   }
 });
 
-// ─── Race start (single path: resets game, starts replay + AI clocks) ───
+/**
+ * Race start (single path: resets game, starts replay + AI clocks).
+ * P2.4: only reached from the pipeline countdown completion; the `started`
+ * guard makes `Game.start()` fire exactly once per race attempt.
+ */
 function startGame(): void {
   victoryCeremony.stop();
+  if (game.started) return;
   const isAIRace = GAME_MODES[currentModeId].features.ai;
+
+  if (raceExecutionMode === 'live') {
+    // P8.2: each race instance gets a fresh completion identity. Retry and
+    // replay re-enter through this same single start path.
+    currentRaceId = raceResultGate.beginRace();
+
+    // P9: one race seed per live attempt. AI races keep the historical
+    // deterministic grid seed (1337); other modes get a fresh random seed.
+    // The seed is captured into the replay so playback reproduces setup.
+    const seed = isAIRace ? 1337 : Math.floor(Math.random() * 0x7fffffff);
+    game.setRaceSeed(seed);
+    inputReplayRecorder.begin({
+      mode: currentModeId,
+      track: currentTrackId,
+      seed,
+      sensitivity: saveManager.sensitivity,
+      trafficEnabled: game.gesturesEnabled,
+      duration: game.getState().raceDuration,
+    });
+  } else {
+    // P9 replay playback: restore the recorded deterministic setup. The
+    // replay source (registered before the pipeline) is the only input.
+    const replay = activeInputReplay;
+    if (replay) {
+      game.setRaceSeed(replay.seed);
+      game.setSensitivity(replay.sensitivity);
+      game.gesturesEnabled = replay.trafficEnabled;
+    }
+  }
+
+  // P7.3: clean presentation edge state + one-shot GO kick.
+  raceFeedback.reset();
+  fireOnce(raceFlash, 'go', 450);
 
   // Configure game mode before start()
   game.setRaceMode(raceModeFor(currentModeId));
   game.start();
   stateMachine.set('racing');
   replayRuntime.begin(game.getState().raceDuration);
+  // GDD §12.1 adaptive music: race bed keyed to intensity (updated per frame).
+  audioManager.startMusic('race');
 
   // ─ AI Race: spin up the grid and HUD ───────────────────────────────
   if (isAIRace) {
@@ -529,7 +906,10 @@ function startGame(): void {
     aiRuntime = new AIRuntime({
       scene: game.scene3d,
       carCount: 5,
-      difficulty: 0.5,
+      tier: tierForDivision(tournamentManager.activeState.division),
+      // P9: the grid seed is deterministic and identical for live (1337)
+      // and replay (recorded seed) — a replay reproduces the same grid.
+      seed: raceExecutionMode === 'live' ? 1337 : (activeInputReplay?.seed ?? 1337),
       trackDistance: 2400,
     });
     aiRuntime.start();
@@ -540,7 +920,10 @@ function startGame(): void {
     if (!raceDirector) raceDirector = new RaceDirector();
     raceDirector.start(1, 6); // 1 lap, 6 total cars
   } else if (GAME_MODES[currentModeId].features.multiplayer && activeNetwork) {
-    // Multiplayer: set up remote player visuals + listen for peer state
+    // Multiplayer: set up remote player visuals + listen for peer state.
+    // P12: clear stale callbacks from previous races so handlers never
+    // accumulate across repeated multiplayer sessions.
+    activeNetwork.clearListeners();
     if (remotePlayers) remotePlayers.dispose();
     remotePlayers = new RemotePlayerManager(game.scene3d);
 
@@ -588,56 +971,98 @@ function updateResultsGhostLine(outcome: ReplayOutcome): void {
 
   // Show replay button if player drove enough distance
   resultsReplay.style.display = game && game.playerDistance > 100 ? 'block' : 'none';
+
+  // P9: the deterministic input replay is offered only when a valid
+  // recording exists for the race that just finished.
+  resultsWatchReplay.style.display =
+    activeInputReplay && game && game.playerDistance > 100 ? 'block' : 'none';
+}
+
+/**
+ * P9 — deactivate replay playback; live input takes over again.
+ */
+function stopReplayPlayback(): void {
+  if (replaySource) {
+    replaySource.stop();
+    inputManager.unregisterSource('replay');
+    replaySource = null;
+  }
+}
+
+/**
+ * P9 — replay progress strip. DOM is touched at most once per second; the
+ * strip is purely informational and never drives any game logic.
+ */
+function updateReplayStrip(): void {
+  if (replaySource && !replayActiveStrip.classList.contains('hidden')) {
+    const sec = Math.floor((game?.getState().raceTime ?? 0) / 1000);
+    if (sec !== lastReplayStripSec) {
+      lastReplayStripSec = sec;
+      replayActiveStrip.setAttribute('data-progress', `${sec}`);
+    }
+  }
 }
 
 // ─── Countdown ─────────────────────────────────────────────────────
-function startCountdown(callback: () => void): void {
-  if (countdownActive) return;
-  countdownActive = true;
-  ui.countdown.classList.remove('hidden');
-  ui.countdownNum.textContent = '3';
-  ui.countdownNum.className = 'countdown-num';
-  SoundHooks.countdownTick();
-
-  // Reset animation
+function restartCountdownAnim(): void {
   ui.countdownNum.style.animation = 'none';
   void ui.countdownNum.offsetHeight;
   ui.countdownNum.style.animation = '';
-
-  let step = 3;
-  countdownInterval = setInterval(() => {
-    step--;
-    if (step > 0) {
-      ui.countdownNum.textContent = `${step}`;
-      ui.countdownNum.className = 'countdown-num';
-      ui.countdownNum.style.animation = 'none';
-      void ui.countdownNum.offsetHeight;
-      ui.countdownNum.style.animation = '';
-      SoundHooks.countdownTick();
-    } else if (step === 0) {
-      ui.countdownNum.textContent = 'GO';
-      ui.countdownNum.className = 'countdown-num go';
-      ui.countdownNum.style.animation = 'none';
-      void ui.countdownNum.offsetHeight;
-      ui.countdownNum.style.animation = '';
-      SoundHooks.raceStart();
-    } else {
-      clearInterval(countdownInterval!);
-      countdownInterval = null;
-      countdownActive = false;
-      ui.countdown.classList.add('hidden');
-      callback();
-    }
-  }, 250);
 }
 
-function cancelCountdown(): void {
-  if (countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
-  countdownActive = false;
-  ui.countdown.classList.add('hidden');
+/**
+ * Build the one authoritative race-start pipeline.
+ *
+ * P2.1 staging: a deterministic cinematic pull-in over the game camera.
+ * P2.2 countdown: 3·2·1·GO backed by the single `Countdown` owner.
+ * Racing can only start from the countdown completion beat.
+ */
+function buildRacePipeline(): RaceStartPipeline {
+  const introTarget: RaceIntroTarget = {
+    prepare() {
+      game.cameraMode = 'cinematic';
+      game.camera.fov = 90;
+      game.camera.updateProjectionMatrix();
+    },
+    frame(p) {
+      const eased = 1 - Math.pow(1 - p, 2);
+      game.camera.position.set(Math.sin(p * Math.PI) * 3, 3.6 - 2.3 * eased, -7 + 7 * eased);
+      game.camera.lookAt(0, 0.5, -1.5);
+    },
+    settle() {
+      game.cameraMode = 'chase';
+      game.updateCamera(1 / 60);
+    },
+  };
+
+  const intro = new RaceIntro(introTarget, { duration: 1600, now: () => performance.now() });
+
+  const countdown = new Countdown(
+    {
+      tick: (step) => {
+        ui.showCountdown();
+        ui.countdownNum.textContent = `${step}`;
+        ui.countdownNum.className = 'countdown-num';
+        restartCountdownAnim();
+        SoundHooks.countdownTick();
+      },
+      go: () => {
+        ui.countdownNum.textContent = 'GO';
+        ui.countdownNum.className = 'countdown-num go';
+        restartCountdownAnim();
+        SoundHooks.raceStart();
+      },
+      clear: () => ui.hideCountdown(),
+    },
+    { intervalMs: 250 }
+  );
+
+  return new RaceStartPipeline({
+    stateMachine,
+    countdown,
+    intro,
+    onRacing: () => startGame(),
+  });
 }
 
 // ─── Keyboard callback ─────────────────────────────────────────────
@@ -658,16 +1083,19 @@ function onKeysChanged(newKeys: GameKeys): void {
         brake: 0,
         boostButton: false,
       });
-      if (!game.started || game.gameOver) {
-        const s = stateMachine.get();
-        if (s === 'idle') return;
-        cancelCountdown();
-        startCountdown(startGame);
-      }
     } else if (newKeys.left || newKeys.right) {
       inputManager.setBase('keyboard', {
         steer: newKeys.left ? -1 : 1,
         throttle: inputManager.autoAccelerate ? 1 : 0.5,
+        brake: 0,
+        boostButton: false,
+      });
+    } else {
+      // Full release: publish neutral so no stale throttle/steer lingers
+      // in the base layer after the keys are up.
+      inputManager.setBase('keyboard', {
+        steer: 0,
+        throttle: 0,
         brake: 0,
         boostButton: false,
       });
@@ -676,11 +1104,24 @@ function onKeysChanged(newKeys: GameKeys): void {
 }
 
 // ─── Hand tracker callback ────────────────────────────────────────
+let lastHandDetectedTime = 0;
+const HAND_PRESENCE_TIMEOUT_MS = 3000;
+let handPresenceWarningShown = false;
+
 function onHandData(data: HandData): void {
   handTrackingActive = true;
   updateStatus();
 
   if (!game) return;
+
+  // Track hand presence for timeout warning
+  if (data.handPresent) {
+    lastHandDetectedTime = performance.now();
+    if (handPresenceWarningShown) {
+      handPresenceWarningShown = false;
+      // Hand returned - could notify recovery if needed
+    }
+  }
 
   // Hand tracking always provides steering (centerX) for the game via the
   // base layer. The game loop applies keyboard/touch/phone overrides on top.
@@ -697,12 +1138,6 @@ function onHandData(data: HandData): void {
     game.setHandSkeleton(data.landmarks[0]);
   }
 
-  if (!game.started && data.handsDetected >= 2 && !countdownActive) {
-    const s = stateMachine.get();
-    if (s === 'idle') return;
-    startCountdown(startGame);
-  }
-
   drawCamOverlay(data);
   drawHandSkeleton(data);
   updateTelemetry(data);
@@ -712,6 +1147,7 @@ function onHandData(data: HandData): void {
 function gameLoop(): void {
   fpsCounter++;
   const now = performance.now();
+  const loopStart = performance.now();
   if (now - lastFpsTime >= 1000) {
     overlayFps = fpsCounter;
     fpsCounter = 0;
@@ -724,27 +1160,68 @@ function gameLoop(): void {
     const frame = inputManager.frame(game.steerCenterX);
     game.setHandData(centerFromSteer(frame.steer), handsFromThrottle(frame.throttle));
 
-    // Auto-accelerate countdown start (matches the legacy loop layer; skips
-    // landing/menu, and never halts the loop on menu screens).
-    if (inputManager.lastLayer === 'auto' && !game.started) {
-      const s = stateMachine.get();
-      if (s !== 'idle') startCountdown(startGame);
-    }
+    // Drive the pre-race staging timeline (no-op outside the intro phase).
+    pipeline?.tick(performance.now());
 
     game.update();
-    game.render();
+    // P12: the menu/settings screens are fully opaque DOM, so the 3D scene is
+    // never visible while idle — skip the render to avoid burning GPU on
+    // hidden frames. Rendering resumes the moment a race phase begins.
+    if (!stateMachine.isIdle()) {
+      game.render();
+    }
 
     const state = game.getState();
     updateSteeringUI(game.steerCenterX, game.handsDetected);
     updateGameHUD(state);
 
+    // P9: capture the exact input frame applied this iteration (live races
+    // only). Playback replays the same per-iteration frame sequence.
+    if (raceExecutionMode === 'live') {
+      inputReplayRecorder.record(frame, state.raceTime);
+    }
+    updateReplayStrip();
+
+    // P4c: Hand presence timeout warning
+    if (state.started && !state.gameOver) {
+      if (!handTrackingActive && !handPresenceWarningShown) {
+        // Camera not active at all
+      } else if (lastHandDetectedTime > 0 && now - lastHandDetectedTime > HAND_PRESENCE_TIMEOUT_MS) {
+        if (!handPresenceWarningShown) {
+          handPresenceWarningShown = true;
+          NotificationSystem.getInstance().warn(
+            'Hand Tracking',
+            'No hands detected. Please place both hands in view.'
+          );
+        }
+      } else if (
+        handPresenceWarningShown &&
+        handTrackingActive &&
+        now - lastHandDetectedTime <= HAND_PRESENCE_TIMEOUT_MS
+      ) {
+        handPresenceWarningShown = false;
+      }
+    }
+
     // Juice: speed lines + vignette
     if (state.started && !state.gameOver) {
-      drawSpeedLines(state.speed, game.steerCenterX);
-      speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.3) / 2.5) * 0.8}`;
+      if (!themeManager.get().reducedMotion) {
+        drawSpeedLines(state.speed, game.steerCenterX);
+        speedVignette.style.opacity = `${Math.max(0, (state.speed - 0.3) / 2.5) * 0.8}`;
+      } else {
+        const ctx = gameOverlayCanvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, gameOverlayCanvas.width, gameOverlayCanvas.height);
+        speedVignette.style.opacity = '0';
+      }
       audioManager.updateEngineSound(state.speed);
       audioManager.updateGear(game.getGear());
       audioManager.updateWeather(game.getWeather());
+      audioManager.updateMusic(state.speed / 3);
+      // Lightning rumble on storm entry (GDD §12.2). Edge-detected.
+      if (game.getWeather() === 'storm' && lastWeatherKind !== 'storm') {
+        audioManager.playLightningRumble();
+      }
+      lastWeatherKind = game.getWeather();
     } else {
       audioManager.stopEngine();
       const ctx = gameOverlayCanvas.getContext('2d');
@@ -754,20 +1231,25 @@ function gameLoop(): void {
 
     // Juice: collision flash
     if (state.justCollided) {
-      collisionFlash.classList.add('active');
+      if (!themeManager.get().reducedMotion) {
+        collisionFlash.classList.add('active');
+        setTimeout(() => collisionFlash.classList.remove('active'), 450);
+      }
       audioManager.playCollision();
-      setTimeout(() => collisionFlash.classList.remove('active'), 450);
     }
 
-    // Screen state derived from game phase
+    // Screen state derived from game phase. `intro` is pipeline-owned, so the
+    // pre-race staging/countdown is never overwritten by the reconciliation.
     const s = stateMachine.get();
     let desired: GamePhase;
     if (s === 'idle') {
       desired = 'idle';
-    } else if (state.started && !state.gameOver) {
-      desired = 'racing';
     } else if (state.gameOver) {
       desired = 'gameover';
+    } else if (state.started) {
+      desired = 'racing';
+    } else if (s === 'ready' || s === 'intro') {
+      desired = s;
     } else {
       desired = 'ready';
     }
@@ -801,19 +1283,20 @@ function gameLoop(): void {
       }
 
       // Update AI HUD
-      if (aiHud) {
-        aiHud.update({
-          position: raceDirector?.getState().position ?? state.position,
-          totalCars: raceDirector?.getState().totalCars ?? state.totalCars,
-          gapAhead: null,
-          gapBehind: null,
-          draftZone: 'none',
-          draftBonus: 0,
-          intent: '',
-          isOvertaking: false,
-          lapTime: state.raceTime,
-          lap: state.lap,
-          totalLaps: state.totalLaps,
+      if (aiHud && aiRuntime && raceDirector) {
+        const raceState = raceDirector.getState();
+        const telemetry = aiRuntime.getHUDTelemetry(game.playerDistance, state.speed, state.lap, raceState);
+        aiHud.update(telemetry);
+
+        // P7.3: presentation edge detection (position/draft/boost/lap).
+        raceFeedback.tick({
+          position: raceState.position,
+          totalCars: raceState.totalCars,
+          lap: raceState.lap,
+          totalLaps: raceState.totalLaps,
+          draftZone: telemetry.draftZone,
+          boostActive: state.boostActive,
+          racing: true,
         });
       }
     } // end if aiRuntime block
@@ -861,11 +1344,44 @@ function gameLoop(): void {
         raceDirector.update(mpDt, [...remoteSnapshots, playerSnapshot]);
         const raceState = raceDirector.getState();
         game.setPosition(raceState.position, raceState.totalCars);
+
+        // P7.3: presentation edge detection for multiplayer races.
+        raceFeedback.tick({
+          position: raceState.position,
+          totalCars: raceState.totalCars,
+          lap: raceState.lap,
+          totalLaps: raceState.totalLaps,
+          draftZone: 'none',
+          boostActive: state.boostActive,
+          racing: true,
+        });
       }
     }
 
     if (isReplaying) {
-      game.updateCamera(1 / 60);
+      // P10: slow motion (Shift hold / SLOW-MO toggle) scales the camera dt.
+      const camDt = slowMoDelta(1 / 60, viewerSlowMo);
+      if (game.cameraMode === 'free') {
+        const keys: ViewerKeys = {
+          forward: inputManager.keys.up,
+          back: inputManager.keys.down,
+          left: inputManager.keys.left,
+          right: inputManager.keys.right,
+        };
+        viewerCam = stepFreeCamera(viewerCam, keys, camDt);
+        game.freeCameraPos.set(viewerCam.x, viewerCam.y, viewerCam.z);
+        game.freeCameraRot.set(viewerCam.pitch, viewerCam.yaw, 0, 'XYZ');
+      }
+      game.updateCamera(camDt);
+    }
+
+    // Dynamic resolution scaling (GDD §15): rolling 2s frame budget.
+    const frameMs = performance.now() - loopStart;
+    frameBudgetScaler.record(frameMs);
+    const mult = frameBudgetScaler.resolutionMultiplier;
+    if (mult !== lastAppliedResolutionMult) {
+      lastAppliedResolutionMult = mult;
+      applyQuality();
     }
   }
 
@@ -884,48 +1400,55 @@ function handleResize(): void {
   if (!game) return;
   const viewport = document.getElementById('game-viewport')!;
   game.resize(viewport.clientWidth, viewport.clientHeight);
+  // P7.3: refresh the cached overlay canvas size here instead of per frame.
+  speedCanvasW = gameOverlayCanvas.clientWidth;
+  speedCanvasH = gameOverlayCanvas.clientHeight;
 }
 
 // ─── Touch Controls ────────────────────────────────────────────────
+/**
+ * Publish the COMPLETE touch state on every change — including the fully
+ * released state. The base layer is a shared single slot: publishing only
+ * press states left a stale throttle/steer frame behind after release
+ * (stuck input when auto-accelerate is off). Always publishing keeps the
+ * layer neutral the moment nothing is held.
+ */
 function applyTouchState(): void {
   if (!game) return;
   const touch = inputManager.touch;
-  if (touch.up) {
+  if (inputManager.oneHand) {
+    // One-hand mode: steering side doubles as throttle (GDD §2.4).
     inputManager.setBase('touch', {
       steer: touch.left ? -1 : touch.right ? 1 : 0,
-      throttle: 1,
+      throttle: touch.left || touch.right ? 1 : 0,
       brake: 0,
       boostButton: false,
     });
-    if (!game.started || game.gameOver) {
-      const s = stateMachine.get();
-      if (s === 'idle') return;
-      cancelCountdown();
-      startCountdown(startGame);
-    }
-  } else if (touch.left) {
-    inputManager.setBase('touch', {
-      steer: -1,
-      throttle: inputManager.autoAccelerate ? 1 : 0.5,
-      brake: 0,
-      boostButton: false,
-    });
-  } else if (touch.right) {
-    inputManager.setBase('touch', {
-      steer: 1,
-      throttle: inputManager.autoAccelerate ? 1 : 0.5,
-      brake: 0,
-      boostButton: false,
-    });
+    return;
   }
+  inputManager.setBase('touch', {
+    steer: touch.left ? -1 : touch.right ? 1 : 0,
+    throttle: touch.up ? 1 : touch.left || touch.right ? (inputManager.autoAccelerate ? 1 : 0.5) : 0,
+    brake: 0,
+    boostButton: false,
+  });
 }
 
 // ─── Speed Lines ───────────────────────────────────────────────────
 let speedLineOffset = 0;
+// P7.3: canvas dimensions cached at resize — no per-frame layout reads.
+let speedCanvasW = 0;
+let speedCanvasH = 0;
 
 function drawSpeedLines(speed: number, steerX: number): void {
-  const w = (gameOverlayCanvas.width = gameOverlayCanvas.clientWidth);
-  const h = (gameOverlayCanvas.height = gameOverlayCanvas.clientHeight);
+  if (!speedCanvasW) {
+    speedCanvasW = gameOverlayCanvas.clientWidth;
+    speedCanvasH = gameOverlayCanvas.clientHeight;
+  }
+  gameOverlayCanvas.width = speedCanvasW;
+  gameOverlayCanvas.height = speedCanvasH;
+  const w = speedCanvasW;
+  const h = speedCanvasH;
   const ctx = gameOverlayCanvas.getContext('2d');
   if (!ctx) return;
 
@@ -974,6 +1497,23 @@ function applySavedSensitivity(): void {
   sensitivitySlider.value = `${saveManager.sensitivity}`;
 }
 
+// ─── Quality tiers (GDD §11.2/§15) ───────────────────────────────
+const frameBudgetScaler = new FrameBudgetScaler();
+/** Last multiplier applied to the renderer so recovery re-applies full ratio. */
+let lastAppliedResolutionMult = 1;
+
+function applyQuality(): void {
+  if (!game) return;
+  const config = resolveQualityConfig(
+    saveManager.graphicsQuality,
+    window.devicePixelRatio || 1,
+    saveManager.shadows,
+    saveManager.particles
+  );
+  const effective = frameBudgetScaler.effectivePixelRatio(config);
+  game.setQuality({ ...config, pixelRatio: effective });
+}
+
 async function init(): Promise<void> {
   const gc = document.getElementById('game') as HTMLCanvasElement;
   if (!gc) throw new Error('Canvas #game not found');
@@ -984,13 +1524,16 @@ async function init(): Promise<void> {
 
   replayRuntime = new ReplayRuntime({
     scene: game.scene3d,
-    hud: new GhostHud(),
+    hud: new GhostHud('ghost-hud', (ahead) => audioManager.playGhostTick(ahead)),
     onNotice: (message) => notify.notify('Ghost', message),
   });
 
   // Restore persisted settings
   inputManager.autoAccelerate = saveManager.autoAccelerate;
   inputManager.gyroscopeMode = saveManager.gyroscopeMode;
+  inputManager.oneHand = saveManager.oneHand;
+  game.reducedMotion = themeManager.get().reducedMotion;
+  applyQuality();
 
   inputManager.onKeysChanged(onKeysChanged);
   inputManager.onTouchChanged(applyTouchState);
@@ -1021,6 +1564,7 @@ async function init(): Promise<void> {
 
   // ─── Menu flow (UI framework) ─────────────────────────────────
   SoundHooks.enabled = saveManager.uiSounds;
+  SoundHooks.volume = saveManager.masterVolume;
   audioManager.masterVolume = saveManager.masterVolume;
   inputManager.autoAccelerate = saveManager.autoAccelerate;
   inputManager.gyroscopeMode = saveManager.gyroscopeMode;
@@ -1036,6 +1580,7 @@ async function init(): Promise<void> {
       sensitivity: saveManager.sensitivity,
       autoAccelerate: inputManager.autoAccelerate,
       gyroscopeMode: inputManager.gyroscopeMode,
+      oneHand: inputManager.oneHand,
       graphicsQuality: saveManager.graphicsQuality,
       shadows: saveManager.shadows,
       particles: saveManager.particles,
@@ -1046,6 +1591,7 @@ async function init(): Promise<void> {
       if (patch.a11y) {
         themeManager.set(patch.a11y);
         saveManager.setA11y(patch.a11y);
+        if (game) game.reducedMotion = themeManager.get().reducedMotion;
       }
       if (patch.sensitivity !== undefined) {
         saveManager.sensitivity = patch.sensitivity;
@@ -1057,43 +1603,70 @@ async function init(): Promise<void> {
         inputManager.gyroscopeMode = patch.gyroscopeMode;
         saveManager.gyroscopeMode = patch.gyroscopeMode;
       }
+      if (patch.oneHand !== undefined) {
+        inputManager.oneHand = patch.oneHand;
+        saveManager.oneHand = patch.oneHand;
+      }
       if (patch.masterVolume !== undefined) {
         audioManager.masterVolume = patch.masterVolume;
+        SoundHooks.volume = patch.masterVolume;
         saveManager.masterVolume = patch.masterVolume;
       }
       if (patch.uiSounds !== undefined) {
         SoundHooks.enabled = patch.uiSounds;
         saveManager.uiSounds = patch.uiSounds;
       }
-      if (patch.graphicsQuality !== undefined) saveManager.graphicsQuality = patch.graphicsQuality;
-      if (patch.shadows !== undefined) saveManager.shadows = patch.shadows;
-      if (patch.particles !== undefined) saveManager.particles = patch.particles;
+      if (patch.graphicsQuality !== undefined) {
+        saveManager.graphicsQuality = patch.graphicsQuality;
+        applyQuality();
+      }
+      if (patch.shadows !== undefined) {
+        saveManager.shadows = patch.shadows;
+        applyQuality();
+      }
+      if (patch.particles !== undefined) {
+        saveManager.particles = patch.particles;
+        applyQuality();
+      }
     },
-    calibrateGesture: () => {
-      notify.success('Calibration', 'Hold your hands in the center for 2 seconds');
-      setTimeout(() => notify.success('Calibration saved'), 2000);
-    },
+    // calibrateGesture is now handled by SettingsScreen via gestureCalibration
     onBack: () => {
       notify.success('Settings', 'Saved');
       void nav.go('menu', {}, { transition: 'slide-right' });
     },
   };
 
+  pipeline = buildRacePipeline();
+
   const startRace = (trackId: TrackId, modeId: ModeId, network?: NetworkManager): void => {
     uiRoot.hidden = true;
+    document.body.classList.add('race-active');
+    document.body.classList.toggle('ai-race', !!GAME_MODES[modeId].features.ai);
     inputManager.setAutoAccelerate(true);
-    stateMachine.set('ready');
-    cancelCountdown();
     replayRuntime.arm(trackId, modeId);
     currentModeId = modeId;
+    currentTrackId = trackId;
+    // P9: leave replay presentation entirely when a fresh live race starts.
+    stopReplayPlayback();
+    replayActiveStrip.classList.add('hidden');
+    replayCompletePanel.classList.toggle('visible', false);
     inputManager.setModeConfig(GAME_MODES[modeId]);
     activeNetwork = network ?? null;
-    startCountdown(startGame);
+    ui.setIntroInfo(trackId, modeId);
+    game.prepareRace();
+    // Audio lifecycle: silence any stale layers, then the cinematic intro sting (GDD §12.2).
+    audioManager.stopAll();
+    audioManager.playIntroSting();
+    pipeline?.start({ reducedMotion: themeManager.get().reducedMotion });
     notify.success(`${trackId.replace(/-/g, ' ')}`, `${modeId.replace(/-/g, ' ')} race started`);
   };
 
   const showMenu = (): void => {
     uiRoot.hidden = false;
+    document.body.classList.remove('race-active', 'ai-race');
+    // Menu music bed (−6dB per GDD §12.3) after any race.
+    audioManager.stopAll();
+    audioManager.startMusic('menu');
   };
 
   buildFlow(nav, {
@@ -1102,6 +1675,9 @@ async function init(): Promise<void> {
     phone: phoneSource,
     garage: new (await import('./screens/GarageScreen')).GarageScreen(),
     howToPlay: new (await import('./screens/HowToPlayScreen')).HowToPlayScreen(),
+    achievements: new (await import('./screens/AchievementsScreen')).AchievementsScreen(),
+    profile: new (await import('./screens/ProfileScreen')).ProfileScreen(),
+    leaderboard: new (await import('./screens/LeaderboardScreen')).LeaderboardScreen(),
     startRace: (trackId, modeId, network) => startRace(trackId, modeId, network),
   });
   showMenu();
@@ -1110,58 +1686,84 @@ async function init(): Promise<void> {
   // Results buttons
   resultsRetry.addEventListener('click', () => {
     victoryCeremony.stop();
-    cancelCountdown();
+    audioManager.stopAll();
+    audioManager.playIntroSting();
+    pipeline?.cancel();
     const last = lastSelection();
+    currentModeId = last.mode;
+    currentTrackId = last.track;
     replayRuntime.arm(last.track, last.mode);
-    startCountdown(startGame);
+    ui.setIntroInfo(last.track, last.mode);
+    game.prepareRace();
+    pipeline?.start({ reducedMotion: themeManager.get().reducedMotion });
   });
 
   resultsReplay.addEventListener('click', () => {
     victoryCeremony.stop();
     ui.sync('racing'); // hide game over overlay
     replayOverlay.classList.remove('hidden');
+    replayOverlay.setAttribute('aria-hidden', 'false');
     isReplaying = true;
 
+    // Reset photo-mode state to defaults on open.
+    viewerSlowMo = false;
+    replaySlowMo.classList.remove('active');
+    replayFilterFocus.value = '0';
+    if (game.postProcessor) game.postProcessor.focus = 0;
+
     // Switch to Replay Camera Mode
-    game.cameraMode = 'orbit';
-    replayCamOrbit.classList.add('active');
-    replayCamChase.classList.remove('active');
-    replayCamCine.classList.remove('active');
+    setReplayCam('orbit');
+
+    // Move focus into the viewer so keyboard users aren't stranded.
+    replayClose.focus();
   });
 
   replayClose.addEventListener('click', () => {
     isReplaying = false;
     replayOverlay.classList.add('hidden');
+    replayOverlay.setAttribute('aria-hidden', 'true');
     game.cameraMode = 'chase';
     // Reset photo-mode filters to defaults
     if (game.postProcessor) {
       game.postProcessor.grain = 0;
       game.postProcessor.contrast = 1.0;
+      game.postProcessor.focus = 0;
     }
     replayFilterGrain.value = '0';
     replayFilterContrast.value = '1';
+    replayFilterFocus.value = '0';
     ui.sync('gameover');
+    // Restore focus to the results actions.
+    resultsRetry.focus();
   });
 
-  replayCamChase.addEventListener('click', () => {
-    game.cameraMode = 'chase';
-    replayCamChase.classList.add('active');
-    replayCamOrbit.classList.remove('active');
-    replayCamCine.classList.remove('active');
-  });
+  const setReplayCam = (mode: 'chase' | 'orbit' | 'cinematic' | 'free'): void => {
+    game.cameraMode = mode;
+    replayCamChase.classList.toggle('active', mode === 'chase');
+    replayCamOrbit.classList.toggle('active', mode === 'orbit');
+    replayCamCine.classList.toggle('active', mode === 'cinematic');
+    replayCamFree.classList.toggle('active', mode === 'free');
+    if (mode === 'free') {
+      // Seed the free camera from the current camera pose so the transition
+      // is seamless instead of snapping to the default.
+      viewerCam = {
+        x: game.camera.position.x,
+        y: game.camera.position.y,
+        z: game.camera.position.z,
+        yaw: game.camera.rotation.y,
+        pitch: game.camera.rotation.x,
+      };
+    }
+  };
 
-  replayCamOrbit.addEventListener('click', () => {
-    game.cameraMode = 'orbit';
-    replayCamOrbit.classList.add('active');
-    replayCamChase.classList.remove('active');
-    replayCamCine.classList.remove('active');
-  });
+  replayCamChase.addEventListener('click', () => setReplayCam('chase'));
+  replayCamOrbit.addEventListener('click', () => setReplayCam('orbit'));
+  replayCamCine.addEventListener('click', () => setReplayCam('cinematic'));
+  replayCamFree.addEventListener('click', () => setReplayCam('free'));
 
-  replayCamCine.addEventListener('click', () => {
-    game.cameraMode = 'cinematic';
-    replayCamCine.classList.add('active');
-    replayCamChase.classList.remove('active');
-    replayCamOrbit.classList.remove('active');
+  replaySlowMo.addEventListener('click', () => {
+    viewerSlowMo = !viewerSlowMo;
+    replaySlowMo.classList.toggle('active', viewerSlowMo);
   });
 
   replayFilterGrain.addEventListener('input', () => {
@@ -1176,40 +1778,200 @@ async function init(): Promise<void> {
     }
   });
 
-  replayPhoto.addEventListener('click', () => {
-    // Briefly hide UI and take screenshot
+  replayFilterFocus.addEventListener('input', () => {
+    if (game.postProcessor) {
+      game.postProcessor.focus = parseFloat(replayFilterFocus.value);
+    }
+  });
+
+  /**
+   * Capture a screenshot through the PostProcessor so photo-mode filters
+   * (grain/contrast/focus) are baked into the image, then share it via the
+   * Web Share API when available (GDD §745) with a download fallback.
+   */
+  const capturePhoto = (): void => {
     replayOverlay.classList.add('hidden');
     setTimeout(() => {
-      game.renderer.render(game.scene, game.camera);
-      const data = game.renderer.domElement.toDataURL('image/png');
-      const a = document.createElement('a');
-      a.href = data;
-      a.download = 'virtual-steering-photo.png';
-      a.click();
-      replayOverlay.classList.remove('hidden');
+      game.postProcessor.render(game.scene, game.camera);
+      const canvas = game.renderer.domElement;
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], 'virtual-steering-photo.png', { type: 'image/png' });
+          const nav = navigator as Navigator & {
+            canShare?: (data?: ShareData) => boolean;
+            share?: (data?: ShareData) => Promise<void>;
+          };
+          if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+            nav
+              .share({ files: [file], title: 'Virtual Steering — Replay Photo' })
+              .catch(() => downloadBlob(blob));
+          } else {
+            downloadBlob(blob);
+          }
+        }
+        replayOverlay.classList.remove('hidden');
+      }, 'image/png');
     }, 100);
-  });
+  };
 
-  resultsMenu.addEventListener('click', () => {
-    victoryCeremony.stop();
-    cancelCountdown();
-    stateMachine.set('idle');
-    replayRuntime.abort();
-    inputManager.setModeConfig(null);
-    showMenu();
-    void nav.reset('menu');
-  });
+  const downloadBlob = (blob: Blob): void => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'virtual-steering-photo.png';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
 
-  navTitle.addEventListener('click', () => {
+  replayPhoto.addEventListener('click', capturePhoto);
+
+  // P10 keyboard shortcuts (GDD §5.2) — active only while the replay viewer
+  // is open: Shift (hold) = slow motion, C = free camera, F12 = screenshot.
+  const onReplayKeyDown = (e: KeyboardEvent): void => {
+    if (!isReplaying) return;
+    const k = e.key;
+    if (k === 'Shift') {
+      viewerSlowMo = true;
+      replaySlowMo.classList.add('active');
+      return;
+    }
+    if (k === 'c' || k === 'C') {
+      e.preventDefault();
+      setReplayCam(game.cameraMode === 'free' ? 'orbit' : 'free');
+      return;
+    }
+    if (k === 'F12') {
+      e.preventDefault();
+      capturePhoto();
+    }
+  };
+  const onReplayKeyUp = (e: KeyboardEvent): void => {
+    if (e.key !== 'Shift' || !isReplaying) return;
+    viewerSlowMo = false;
+    replaySlowMo.classList.remove('active');
+  };
+  window.addEventListener('keydown', onReplayKeyDown);
+  window.addEventListener('keyup', onReplayKeyUp);
+
+  // P10 free-camera pointer look: drag rotates yaw/pitch while in FREE mode.
+  const viewport = document.getElementById('game-viewport')!;
+  const onViewerPointerDown = (e: PointerEvent): void => {
+    if (!isReplaying || game.cameraMode !== 'free') return;
+    viewerDragging = true;
+    viewerLastPointerX = e.clientX;
+    viewerLastPointerY = e.clientY;
+    viewport.setPointerCapture(e.pointerId);
+  };
+  const onViewerPointerMove = (e: PointerEvent): void => {
+    if (!viewerDragging || !isReplaying || game.cameraMode !== 'free') return;
+    const dx = e.clientX - viewerLastPointerX;
+    const dy = e.clientY - viewerLastPointerY;
+    viewerLastPointerX = e.clientX;
+    viewerLastPointerY = e.clientY;
+    viewerCam = lookFreeCamera(viewerCam, dx, dy);
+  };
+  const onViewerPointerUp = (e: PointerEvent): void => {
+    viewerDragging = false;
+    try {
+      viewport.releasePointerCapture(e.pointerId);
+    } catch {
+      // pointer already released
+    }
+  };
+  viewport.addEventListener('pointerdown', onViewerPointerDown);
+  viewport.addEventListener('pointermove', onViewerPointerMove);
+  viewport.addEventListener('pointerup', onViewerPointerUp);
+  viewport.addEventListener('pointercancel', onViewerPointerUp);
+
+  /**
+   * P9 — start deterministic replay playback of the last finished race.
+   * Validates the recording, restores its setup (seed/sensitivity/traffic),
+   * registers the replay input source as the authoritative input, and runs
+   * the normal race pipeline. No reward path exists in this mode.
+   */
+  const startReplay = (): void => {
+    const replay = activeInputReplay;
+    if (!replay) return;
+    const validation = validateInputReplay(replay);
+    if (!validation.valid) {
+      notify.error('Replay unavailable', validation.errors[0] ?? 'invalid replay data');
+      return;
+    }
+    if (game.started && !game.getState().gameOver) return;
+
+    raceExecutionMode = 'replay';
     victoryCeremony.stop();
+    pipeline?.cancel();
+
+    const cfg = GAME_MODES[replay.mode];
+    currentModeId = replay.mode;
+    uiRoot.hidden = true;
+    document.body.classList.add('race-active');
+    document.body.classList.toggle('ai-race', !!cfg.features.ai);
+    inputManager.setModeConfig(cfg);
+    inputManager.setAutoAccelerate(true);
+
+    // Deterministic setup restoration.
+    game.setRaceMode(raceModeFor(replay.mode));
+    game.setRaceSeed(replay.seed);
+    game.setSensitivity(replay.sensitivity);
+    game.gesturesEnabled = replay.trafficEnabled;
+
+    // Playback is the only input authority from here until exit.
+    stopReplayPlayback();
+    replaySource = new ReplayInputSource(replay);
+    inputManager.registerSource(replaySource);
+
+    lastReplayStripSec = -1;
+    replayActiveStrip.classList.remove('hidden');
+    replayActiveStrip.setAttribute('data-progress', '0');
+    ui.setIntroInfo(replay.track, replay.mode);
+    game.prepareRace();
+    pipeline?.start({ reducedMotion: themeManager.get().reducedMotion });
+  };
+
+  /** Shared "back to main menu" path for results / replay exits. */
+  const goToMainMenu = (): void => {
+    victoryCeremony.stop();
+    pipeline?.cancel();
     stateMachine.set('idle');
     if (game) game.setGameOver();
+    stopReplayPlayback();
+    raceExecutionMode = 'live';
+    inputReplayRecorder.abort();
     replayRuntime.abort();
+    replayActiveStrip.classList.add('hidden');
+    replayCompletePanel.classList.toggle('visible', false);
     inputManager.setModeConfig(null);
+    // P12: tear down multiplayer peers + remote visuals when leaving the race.
+    if (remotePlayers) {
+      remotePlayers.dispose();
+      remotePlayers = null;
+    }
+    if (activeNetwork) {
+      activeNetwork.disconnect();
+      activeNetwork = null;
+    }
     showMenu();
     void nav.reset('menu');
+  };
+
+  resultsMenu.addEventListener('click', goToMainMenu);
+  resultsWatchReplay.addEventListener('click', startReplay);
+  replayCompleteMenu.addEventListener('click', goToMainMenu);
+  replayActiveExit.addEventListener('click', goToMainMenu);
+
+  navTitle.addEventListener('click', goToMainMenu);
+  navTitle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      goToMainMenu();
+    }
   });
   navTitle.style.cursor = 'pointer';
+  navTitle.setAttribute('role', 'button');
+  navTitle.setAttribute('tabindex', '0');
+  navTitle.setAttribute('aria-label', 'Back to main menu');
 
   const navSettingsBtn = document.getElementById('btn-settings') as HTMLElement;
   SoundHooks.attach(navTitle);
@@ -1248,11 +2010,19 @@ async function init(): Promise<void> {
   });
 
   window.addEventListener('beforeunload', () => {
+    pipeline?.cancel();
+    inputReplayRecorder.abort();
+    stopReplayPlayback();
     game?.dispose();
     audioManager.dispose();
     replayRuntime?.dispose();
     aiRuntime?.dispose();
     aiHud?.dispose();
+    victoryCeremony.stop();
+    if (remotePlayers) remotePlayers.dispose();
+    if (activeNetwork) activeNetwork.disconnect();
+    tracker?.stop();
+    phoneSource.stop();
   });
 
   updateStatus();

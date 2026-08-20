@@ -110,6 +110,11 @@ export class NetworkManager {
       this.peer = null;
     }
     this.connections.clear();
+    this.clearListeners();
+  }
+
+  /** Drop all registered callbacks without tearing down the peer (P12). */
+  public clearListeners(): void {
     this.messageHandlers = [];
     this.connectedHandlers = [];
     this.disconnectedHandlers = [];
