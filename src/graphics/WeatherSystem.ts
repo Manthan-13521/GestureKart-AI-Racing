@@ -75,6 +75,9 @@ export class WeatherSystem {
   private cycleInterval = 45; // seconds before random weather change
   private currentKind: WeatherKind = 'clear';
 
+  /** Quality-tier gate: when false, rain layers are hidden and cycling pauses (GDD §11.2). */
+  public enabled = true;
+
   constructor(scene: THREE.Scene, ambient: THREE.AmbientLight) {
     this.scene = scene;
     this.ambient = ambient;
@@ -186,7 +189,7 @@ export class WeatherSystem {
 
     // Rain update
     const rainMat = this.rainPoints.material as THREE.ShaderMaterial;
-    if (cfg.rainIntensity > 0.01) {
+    if (cfg.rainIntensity > 0.01 && this.enabled) {
       this.rainPoints.visible = true;
       rainMat.uniforms.intensity.value = cfg.rainIntensity;
 
@@ -211,10 +214,12 @@ export class WeatherSystem {
     }
 
     // Auto weather cycle
-    this.cycleTimer += dt;
-    if (this.cycleTimer >= this.cycleInterval) {
-      this.cycleTimer = 0;
-      this.pickNextWeather();
+    if (this.enabled) {
+      this.cycleTimer += dt;
+      if (this.cycleTimer >= this.cycleInterval) {
+        this.cycleTimer = 0;
+        this.pickNextWeather();
+      }
     }
   }
 

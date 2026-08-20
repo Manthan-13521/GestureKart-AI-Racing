@@ -40,6 +40,9 @@ export class ParticlePool {
   private trailTimer = 0;
   private fogTimer = 0;
 
+  /** 0..1 emission density multiplier (quality tiers, GDD §11.2). */
+  public emissionScale = 1;
+
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.positions = new Float32Array(POOL_SIZE * 3);
@@ -189,10 +192,13 @@ export class ParticlePool {
     // Spawn trail particles when moving fast enough
     this.trailTimer += dt;
     const trailInterval = speed > 0.3 ? Math.max(0.01, 0.08 - speed * 0.02) : 1;
-    if (this.trailTimer >= trailInterval && speed > 0.3) {
+    if (this.trailTimer >= trailInterval && speed > 0.3 && this.emissionScale > 0) {
       this.trailTimer = 0;
       const intensity = Math.min(1, (speed - 0.3) / 2.5);
-      const count = Math.floor(intensity * 4) + 1;
+      const count = Math.max(
+        1,
+        Math.floor(intensity * 4 * this.emissionScale) + (this.emissionScale >= 0.5 ? 1 : 0)
+      );
       for (let i = 0; i < count; i++) {
         const side = (Math.random() > 0.5 ? 1 : -1) * 0.8;
         this.emit(
@@ -214,7 +220,7 @@ export class ParticlePool {
 
     // Spawn atmospheric fog particles
     this.fogTimer += dt;
-    if (this.fogTimer >= 0.3) {
+    if (this.fogTimer >= 0.3 && this.emissionScale > 0.3) {
       this.fogTimer = 0;
       this.emit(
         (Math.random() - 0.5) * 12,

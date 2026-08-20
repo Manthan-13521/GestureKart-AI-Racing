@@ -21,6 +21,8 @@ export class PostProcessor {
   private brightRT: THREE.WebGLRenderTarget;
   private blurHRT: THREE.WebGLRenderTarget;
   private blurVRT: THREE.WebGLRenderTarget;
+  private dofHRT: THREE.WebGLRenderTarget;
+  private dofVRT: THREE.WebGLRenderTarget;
 
   // Full-screen triangle
   private fsTriGeo: THREE.BufferGeometry;
@@ -44,6 +46,8 @@ export class PostProcessor {
   // Photo Mode Filters
   public contrast = 1.0;
   public grain = 0.0;
+  /** Depth-of-field soft focus, 0 (sharp) .. 1 (strong defocus). */
+  public focus = 0.0;
 
   constructor(renderer: THREE.WebGLRenderer, width: number, height: number) {
     this.renderer = renderer;
@@ -60,6 +64,8 @@ export class PostProcessor {
     this.brightRT = new THREE.WebGLRenderTarget(width >> 1, height >> 1, rtOpts);
     this.blurHRT = new THREE.WebGLRenderTarget(width >> 1, height >> 1, rtOpts);
     this.blurVRT = new THREE.WebGLRenderTarget(width >> 1, height >> 1, rtOpts);
+    this.dofHRT = new THREE.WebGLRenderTarget(width, height, rtOpts);
+    this.dofVRT = new THREE.WebGLRenderTarget(width, height, rtOpts);
 
     this.fsCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     this.fsScene = new THREE.Scene();
@@ -114,8 +120,13 @@ export class PostProcessor {
       uniforms: {
         tScene: { value: null },
         tBloom: { value: null },
+        tDof: { value: null },
         strength: { value: this.bloomStrength },
         contrast: { value: this.contrast },
+        grain: { value: this.grain },
+        focus: { value: this.focus },
+        resolution: { value: new THREE.Vector2(width, height) },
+        time: { value: 0 },
       },
       vertexShader: PASSTHROUGH_VERT,
       fragmentShader: COMPOSITE_FRAG,
@@ -156,17 +167,34 @@ export class PostProcessor {
 
     // 3. Horizontal blur
     this.blurHMat.uniforms.tDiffuse.value = this.brightRT.texture;
+    this.blurHMat.uniforms.resolution.value.set(this.width >> 1, this.height >> 1);
     this.renderPass(this.blurHMat, this.blurHRT);
 
     // 4. Vertical blur
     this.blurVMat.uniforms.tDiffuse.value = this.blurHRT.texture;
+    this.blurVMat.uniforms.resolution.value.set(this.width >> 1, this.height >> 1);
     this.renderPass(this.blurVMat, this.blurVRT);
 
-    // 5. Composite to screen
+    // 5. Depth-of-field (focus): full-res soft blur of the scene when active.
+    const dofActive = this.focus > 0.001;
+    if (dofActive) {
+      this.blurHMat.uniforms.tDiffuse.value = this.sceneRT.texture;
+      this.blurHMat.uniforms.resolution.value.set(this.width, this.height);
+      this.renderPass(this.blurHMat, this.dofHRT);
+      this.blurVMat.uniforms.tDiffuse.value = this.dofHRT.texture;
+      this.blurVMat.uniforms.resolution.value.set(this.width, this.height);
+      this.renderPass(this.blurVMat, this.dofVRT);
+    }
+
+    // 6. Composite to screen
     this.compositeMat.uniforms.tScene.value = this.sceneRT.texture;
     this.compositeMat.uniforms.tBloom.value = this.blurVRT.texture;
+    this.compositeMat.uniforms.tDof.value = dofActive ? this.dofVRT.texture : null;
     this.compositeMat.uniforms.strength.value = this.bloomStrength;
     this.compositeMat.uniforms.contrast.value = this.contrast;
+    this.compositeMat.uniforms.grain.value = this.grain;
+    this.compositeMat.uniforms.focus.value = this.focus;
+    this.compositeMat.uniforms.time.value = performance.now() / 1000;
     this.renderPass(this.compositeMat, null);
   }
 
@@ -177,9 +205,12 @@ export class PostProcessor {
     this.brightRT.setSize(width >> 1, height >> 1);
     this.blurHRT.setSize(width >> 1, height >> 1);
     this.blurVRT.setSize(width >> 1, height >> 1);
+    this.dofHRT.setSize(width, height);
+    this.dofVRT.setSize(width, height);
     const res = new THREE.Vector2(width >> 1, height >> 1);
     this.blurHMat.uniforms.resolution.value = res.clone();
     this.blurVMat.uniforms.resolution.value = res.clone();
+    this.compositeMat.uniforms.resolution.value.set(width, height);
   }
 
   public dispose(): void {
@@ -187,6 +218,8 @@ export class PostProcessor {
     this.brightRT.dispose();
     this.blurHRT.dispose();
     this.blurVRT.dispose();
+    this.dofHRT.dispose();
+    this.dofVRT.dispose();
     this.fsTriGeo.dispose();
     this.thresholdMat.dispose();
     this.blurHMat.dispose();
@@ -244,10 +277,22 @@ const COMPOSITE_FRAG = /* glsl */ `
   precision highp float;
   uniform sampler2D tScene;
   uniform sampler2D tBloom;
+  uniform sampler2D tDof;
   uniform float strength;
   uniform float contrast;
+  uniform float grain;
+  uniform float focus;
+  uniform vec2 resolution;
+  uniform float time;
   varying vec2 vUv;
-  
+
+  // Deterministic film-grain hash (no external noise texture).
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
   void main() {
     vec4 scene = texture2D(tScene, vUv);
     vec4 bloom = texture2D(tBloom, vUv);
@@ -256,8 +301,20 @@ const COMPOSITE_FRAG = /* glsl */ `
     combined = combined / (combined + vec3(1.0));
     combined = pow(combined, vec3(1.0 / 2.2)); // gamma correction
     
+    // Depth of field: blend toward the blurred copy when focus is active.
+    if (focus > 0.001) {
+      vec3 dof = texture2D(tDof, vUv).rgb;
+      combined = mix(combined, dof, clamp(focus, 0.0, 1.0));
+    }
+
     // Contrast
     combined = (combined - 0.5) * contrast + 0.5;
+
+    // Film grain (animated at ~24 fps so it reads as motion-picture grain).
+    if (grain > 0.001) {
+      float n = hash21(vUv * resolution + fract(time) * 137.0);
+      combined += (n - 0.5) * 0.08 * grain;
+    }
     
     gl_FragColor = vec4(combined, scene.a);
   }
