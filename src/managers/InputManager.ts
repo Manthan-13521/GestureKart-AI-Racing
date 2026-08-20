@@ -33,6 +33,8 @@ export class InputManager {
   gyroscopeMode = false;
   gyroTilt = 0;
   autoAccelerate = false;
+  /** One-hand mode: steer + accelerate from one side (GDD §2.4). */
+  oneHand = false;
 
   readonly keyboard = new KeyboardSource(this);
   readonly touchSource = new TouchSource(this);
@@ -65,6 +67,10 @@ export class InputManager {
 
   registerSource(source: InputSource): void {
     this.sources.set(source.id, source);
+  }
+
+  unregisterSource(id: InputSourceId): void {
+    this.sources.delete(id);
   }
 
   getSource(id: InputSourceId): InputSource | undefined {
@@ -112,27 +118,29 @@ export class InputManager {
       this.touchApply?.();
     };
 
+    /**
+     * Pointer Events are the single uniform input pipeline for mouse, touch
+     * and pen. Pointer capture keeps the button as the event target even when
+     * the pointer slides off, and pointercancel guarantees a release when the
+     * browser takes the gesture over — so no control can stay stuck.
+     */
     const bind = (el: HTMLElement, key: 'left' | 'right' | 'up'): void => {
-      el.addEventListener(
-        'touchstart',
-        (e) => {
-          e.preventDefault();
-          setHeld(key, el, true);
-        },
-        { passive: false }
-      );
-      el.addEventListener(
-        'touchend',
-        (e) => {
-          e.preventDefault();
-          setHeld(key, el, false);
-        },
-        { passive: false }
-      );
-      el.addEventListener('touchcancel', () => setHeld(key, el, false));
-      el.addEventListener('mousedown', () => setHeld(key, el, true));
-      el.addEventListener('mouseup', () => setHeld(key, el, false));
-      el.addEventListener('mouseleave', () => setHeld(key, el, false));
+      el.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 && e.pointerType !== 'touch') return;
+        e.preventDefault();
+        try {
+          el.setPointerCapture?.(e.pointerId);
+        } catch {
+          // Capture is best-effort; pointerup/pointercancel still release.
+        }
+        setHeld(key, el, true);
+      });
+      el.addEventListener('pointerup', () => setHeld(key, el, false));
+      el.addEventListener('pointercancel', () => setHeld(key, el, false));
+      el.addEventListener('pointerleave', () => {
+        // Without an active capture (e.g. pen hover) leaving must release.
+        if (!el.hasPointerCapture?.(0)) setHeld(key, el, false);
+      });
     };
 
     bind(els.left, 'left');
@@ -186,11 +194,19 @@ export class InputManager {
   /**
    * Resolve the single active InputFrame for this game tick.
    *
-   * Preserves the legacy priority: phone → auto-accelerate → gyro → base.
+   * Priority: replay (P9 — authoritative during playback) → phone →
+   * auto-accelerate → gyro → base. While a replay source is active, live
+   * device input can never modify the race.
    * `currentCenterX` is the game's last-applied steering center (0..1),
    * used by the auto-accelerate layer's "keep current steering" fallback.
    */
   frame(currentCenterX: number): InputFrame {
+    const replay = this.getSource('replay');
+    if (replay?.isAvailable()) {
+      this.lastLayer = 'replay';
+      return clampFrame(replay.read());
+    }
+
     const phone = this.getSource('phone');
     if (phone?.isAvailable() && this.isSourceAllowed('phone')) {
       this.lastLayer = 'phone';

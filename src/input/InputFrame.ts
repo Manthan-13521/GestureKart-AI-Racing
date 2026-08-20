@@ -22,10 +22,10 @@ export interface InputFrame {
   boostButton: boolean;
 }
 
-export type InputSourceId = 'keyboard' | 'touch' | 'gyro' | 'hand' | 'phone' | 'gamepad';
+export type InputSourceId = 'keyboard' | 'touch' | 'gyro' | 'hand' | 'phone' | 'gamepad' | 'replay';
 
 /** The layer that produced the most recent frame — drives loop side effects. */
-export type InputLayer = 'phone' | 'auto' | 'gyro' | 'base';
+export type InputLayer = 'phone' | 'auto' | 'gyro' | 'base' | 'replay';
 
 /** A device input adapter: projects raw device state into a normalized frame. */
 export interface InputSource {

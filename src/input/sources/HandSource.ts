@@ -21,6 +21,8 @@ export class HandSource implements InputSource {
   read(): InputFrame {
     const data = this.last;
     if (!data) return { ...NEUTRAL_FRAME };
-    return frameFromHandData(data.centerX, data.handsDetected);
+    // Use calibrated center if available, fallback to regular centerX
+    const centerX = data.calibratedCenterX ?? data.centerX;
+    return frameFromHandData(centerX, data.handsDetected);
   }
 }

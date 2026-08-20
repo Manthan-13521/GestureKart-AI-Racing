@@ -1,4 +1,5 @@
 import type { MediaPipeHandedness, MediaPipeLandmark, MediaPipeResults } from '../types/mediapipe';
+import { gestureCalibration, type CalibrationData } from './GestureCalibration';
 
 export interface Landmark {
   x: number;
@@ -10,9 +11,12 @@ export interface HandData {
   handsDetected: number;
   centerX: number;
   rawCenterX: number;
+  calibratedCenterX: number;
   landmarks: Landmark[][];
   handedness: string[];
   confidence: number;
+  calibration: CalibrationData | null;
+  handPresent: boolean;
 }
 
 export type HandCallback = (data: HandData) => void;
@@ -54,6 +58,9 @@ export class HandTracker {
   private running = false;
   private smoothAlpha = 0.55;
   private smoothedX = 0.5;
+  private lastValidFrameTime = 0;
+  private handPresent = false;
+  private readonly HAND_PRESENCE_TIMEOUT_MS = 3000;
 
   constructor(videoElement: HTMLVideoElement, callback: HandCallback) {
     this.callback = callback;
@@ -108,15 +115,39 @@ export class HandTracker {
     }
   }
 
+  private applyCalibration(rawCenterX: number, calibration: CalibrationData | null): number {
+    if (!calibration) return rawCenterX;
+
+    // Apply neutral center offset
+    let calibrated = rawCenterX - calibration.neutralCenterX + 0.5;
+    calibrated = Math.max(0, Math.min(1, calibrated));
+
+    // Apply calibrated dead zone
+    const offsetFromCenter = calibrated - 0.5;
+    const absOffset = Math.abs(offsetFromCenter);
+    if (absOffset < calibration.deadZone) {
+      calibrated = 0.5;
+    } else {
+      // Scale beyond dead zone
+      const scale = (absOffset - calibration.deadZone) / (0.5 - calibration.deadZone);
+      calibrated = 0.5 + Math.sign(offsetFromCenter) * scale * 0.5;
+    }
+
+    return calibrated;
+  }
+
   private onResults(results: MediaPipeResults): void {
     if (!this.running) return;
 
     const allLandmarks = results.multiHandLandmarks;
     const handedness = results.multiHandedness || [];
     const handsDetected = allLandmarks?.length ?? 0;
+    const now = performance.now();
 
     let rawCenterX = 0.5;
     const landmarksOut: Landmark[][] = [];
+    let handPresent = false;
+    const calibration = gestureCalibration.getCalibration();
 
     if (allLandmarks && handsDetected >= 2) {
       const lm0 = allLandmarks[0];
@@ -124,12 +155,27 @@ export class HandTracker {
       const palm0 = (lm0[0].x + lm0[5].x + lm0[9].x) / 3;
       const palm1 = (lm1[0].x + lm1[5].x + lm1[9].x) / 3;
       rawCenterX = 1 - (palm0 + palm1) / 2;
+      handPresent = true;
     } else if (allLandmarks && handsDetected === 1) {
       const lm = allLandmarks[0];
       rawCenterX = 1 - (lm[0].x + lm[5].x + lm[9].x) / 3;
+      handPresent = true;
     }
 
-    this.smoothedX = this.smoothAlpha * rawCenterX + (1 - this.smoothAlpha) * this.smoothedX;
+    // Apply adaptive EMA smoothing if calibration provides it
+    const alpha = calibration?.emaAlpha ?? this.smoothAlpha;
+    this.smoothedX = alpha * rawCenterX + (1 - alpha) * this.smoothedX;
+
+    // Apply calibration (neutral center + dead zone)
+    const calibratedCenterX = this.applyCalibration(this.smoothedX, calibration);
+
+    // Track hand presence for timeout
+    if (handPresent) {
+      this.lastValidFrameTime = now;
+      this.handPresent = true;
+    } else if (this.handPresent && now - this.lastValidFrameTime > this.HAND_PRESENCE_TIMEOUT_MS) {
+      this.handPresent = false;
+    }
 
     for (const lm of allLandmarks || []) {
       landmarksOut.push(lm.map((p: MediaPipeLandmark) => ({ x: p.x, y: p.y, z: p.z })));
@@ -142,11 +188,14 @@ export class HandTracker {
 
     this.callback({
       handsDetected,
-      centerX: this.smoothedX,
+      centerX: calibratedCenterX,
       rawCenterX,
+      calibratedCenterX,
       landmarks: landmarksOut,
       handedness: handedness.map((h: MediaPipeHandedness) => h.label ?? ''),
       confidence,
+      calibration,
+      handPresent: this.handPresent,
     });
   }
 }

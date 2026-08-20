@@ -16,6 +16,15 @@ export class TouchSource implements InputSource {
 
   read(): InputFrame {
     const { touch } = this.input;
+    if (this.input.oneHand) {
+      // One-hand mode: either side steers AND accelerates (GDD §2.4).
+      return {
+        steer: touch.left ? -1 : touch.right ? 1 : 0,
+        throttle: touch.left || touch.right ? 1 : 0,
+        brake: 0,
+        boostButton: false,
+      };
+    }
     return {
       steer: touch.left ? -1 : touch.right ? 1 : 0,
       throttle: touch.up ? 1 : 0,
