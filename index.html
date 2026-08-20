@@ -40,10 +40,58 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap"
-      rel="stylesheet"
-    />
+    <style>
+      @font-face {
+        font-family: 'Orbitron';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/Orbitron-Regular.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Orbitron';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/Orbitron-Bold.woff') format('woff');
+      }
+      @font-face {
+        font-family: 'Rajdhani';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/Rajdhani-Regular.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Rajdhani';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/Rajdhani-Bold.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/Inter-Regular.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('/fonts/Inter-Bold.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'Share Tech Mono';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('/fonts/ShareTechMono-Regular.woff2') format('woff2');
+      }
+    </style>
+    <link rel="stylesheet" href="/src/ui/ui.css" />
     <link rel="stylesheet" href="/src/style.css" />
     <script
       src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js"
@@ -79,7 +127,14 @@
     <main class="app">
       <!-- LEFT PANEL (collapsible on desktop) -->
       <aside class="panel-left" id="panel-left">
-        <button class="panel-toggle" id="panel-toggle" title="Toggle panel">
+        <button
+          class="panel-toggle"
+          id="panel-toggle"
+          title="Toggle panel"
+          aria-label="Toggle panel"
+          aria-expanded="true"
+          aria-controls="panel-left"
+        >
           <svg viewBox="0 0 24 24" width="16" height="16">
             <polyline
               points="9,4 3,12 9,20"
@@ -224,7 +279,15 @@
           <div class="card card-calibrate">
             <div class="calibrate-row">
               <span class="calibrate-label">SENSITIVITY</span>
-              <input type="range" id="sensitivity-slider" min="10" max="100" value="75" class="slider" />
+              <input
+                type="range"
+                id="sensitivity-slider"
+                min="10"
+                max="100"
+                value="75"
+                class="slider"
+                aria-label="Sensitivity"
+              />
               <span class="calibrate-val" id="sensitivity-value">75%</span>
             </div>
           </div>
@@ -268,12 +331,13 @@
           <!-- Juice overlays -->
           <div class="speed-vignette" id="speed-vignette"></div>
           <div class="collision-flash" id="collision-flash"></div>
+          <div class="near-miss-glow" id="near-miss-glow" aria-hidden="true"></div>
 
-          <!-- ─── HUD ─── -->
-          <div class="hud">
+          <!-- ─── HUD (P2.3: phase-owned lifecycle — hidden until racing) ─── -->
+          <div class="hud hidden" id="game-hud">
             <!-- Top-left: Position + Lap -->
             <div class="hud-tl">
-              <div class="hud-position">
+              <div class="hud-position" id="hud-position-chip">
                 <span class="hud-pos-val" id="hud-position">2</span>
                 <span class="hud-pos-slash">/</span>
                 <span class="hud-pos-total">6</span>
@@ -282,6 +346,12 @@
                 <span class="hud-lap-label">LAP</span>
                 <span class="hud-lap-val" id="hud-lap">1/2</span>
               </div>
+            </div>
+
+            <!-- Position-change pop (P7.3): one-shot on rank change -->
+            <div class="pos-change-pop" id="pos-change-pop" aria-hidden="true">
+              <span class="pos-change-pop-arrow" id="pos-change-pop-arrow">▲</span>
+              <span class="pos-change-pop-num" id="pos-change-pop-num">P2</span>
             </div>
 
             <!-- Top-center: Race time -->
@@ -295,6 +365,16 @@
             <div class="hud-tr">
               <div class="hud-score-label">SCORE</div>
               <div class="hud-score-val" id="hud-best">0</div>
+            </div>
+
+            <!-- Top-right: Combo (P4) + combo ring (GDD §6.7) -->
+            <div class="hud-combo hidden" id="hud-combo">
+              <span class="hud-combo-label">COMBO</span>
+              <span class="hud-combo-val" id="hud-combo-val">×1</span>
+              <svg class="hud-combo-ring" viewBox="0 0 40 40" aria-hidden="true">
+                <circle cx="20" cy="20" r="17" class="hud-combo-ring-bg" />
+                <circle cx="20" cy="20" r="17" class="hud-combo-ring-fill" id="hud-combo-ring-fill" />
+              </svg>
             </div>
 
             <!-- Bottom-right: Speed cluster -->
@@ -339,6 +419,12 @@
               </div>
             </div>
 
+            <!-- Bottom-right: Boost bar (P4) -->
+            <div class="hud-boost hidden" id="hud-boost">
+              <div class="hud-boost-fill" id="hud-boost-fill"></div>
+              <span class="hud-boost-label" id="hud-boost-label">BOOST</span>
+            </div>
+
             <!-- Bottom-left: Gear -->
             <div class="hud-bl">
               <span class="hud-gear-label">GEAR</span>
@@ -371,9 +457,25 @@
 
           <!-- ─── Menu / HowToPlay / Settings overlays replaced by UI framework screens ─── -->
 
-          <!-- ─── Countdown Overlay ─── -->
-          <div class="countdown-overlay hidden" id="countdown-overlay">
+          <!-- ─── Countdown Overlay (P2.3: accessible live region, hidden when inactive) ─── -->
+          <div
+            class="countdown-overlay hidden"
+            id="countdown-overlay"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            aria-hidden="true"
+          >
             <div class="countdown-num" id="countdown-num">3</div>
+          </div>
+
+          <!-- ─── Intro / pre-race presentation overlay (P2.3) ─── -->
+          <div class="intro-overlay" id="intro-overlay" aria-hidden="true">
+            <div class="intro-content">
+              <div class="intro-badge" aria-hidden="true">🏁</div>
+              <div class="intro-title">GET READY</div>
+              <div class="intro-sub" id="intro-sub">Track · Mode</div>
+            </div>
           </div>
 
           <!-- ─── Start Overlay ─── -->
@@ -386,8 +488,17 @@
             </div>
           </div>
 
+          <!-- Fullscreen one-shot flash (P7.3): GO kick / boost surge -->
+          <div class="race-flash" id="race-flash" aria-hidden="true"></div>
+
           <!-- ─── Game Over Overlay ─── -->
-          <div class="game-overlay" id="game-over-overlay">
+          <div
+            class="game-overlay"
+            id="game-over-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Race results"
+          >
             <div class="overlay-content overlay-results">
               <div id="results-ceremony-container">
                 <div class="results-crown">&#127942;</div>
@@ -404,43 +515,112 @@
                 <button class="results-btn results-btn-secondary" id="results-replay" style="display: none">
                   WATCH REPLAY
                 </button>
+                <button
+                  class="results-btn results-btn-secondary"
+                  id="results-watch-replay"
+                  style="display: none"
+                >
+                  REPLAY RACE
+                </button>
                 <button class="results-btn results-btn-secondary" id="results-menu">MAIN MENU</button>
               </div>
             </div>
           </div>
 
+          <!-- ─── P9: replay playback strip ─── -->
+          <div
+            class="replay-active-strip hidden"
+            id="replay-active-strip"
+            data-progress="0"
+            role="status"
+            aria-live="polite"
+          >
+            <span class="replay-strip-label">REPLAY</span>
+            <span class="replay-strip-hint">LIVE INPUT DISABLED</span>
+            <button class="replay-btn replay-strip-exit" id="replay-active-exit">EXIT REPLAY</button>
+          </div>
+
+          <!-- ─── P9: replay completion panel ─── -->
+          <div
+            class="game-overlay"
+            id="replay-complete-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Replay complete"
+          >
+            <div class="overlay-content overlay-results">
+              <div class="replay-complete-title">REPLAY COMPLETE</div>
+              <p class="replay-complete-note">
+                This was a replay of a finished race. No rewards, records or tournament progress were awarded.
+              </p>
+              <div class="results-divider"></div>
+              <div class="results-actions">
+                <button class="results-btn results-btn-primary" id="replay-complete-menu">MAIN MENU</button>
+              </div>
+            </div>
+          </div>
+
           <!-- ─── Replay Overlay ─── -->
-          <div class="replay-overlay hidden" id="replay-overlay">
+          <div
+            class="replay-overlay hidden"
+            id="replay-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Replay viewer"
+          >
             <div class="replay-top-bar">
               <div class="replay-title">REPLAY VIEWER</div>
               <button class="replay-btn" id="replay-close">EXIT</button>
             </div>
 
             <div class="replay-bottom-bar">
-              <div class="replay-controls">
-                <button class="replay-icon-btn" id="replay-play-pause">&#9208;</button>
-                <div class="replay-timeline">
-                  <input type="range" id="replay-scrubber" min="0" max="100" value="0" step="0.1" />
-                </div>
-              </div>
-
               <div class="replay-toolbar">
                 <div class="replay-tool-group">
                   <span class="replay-tool-label">CAMERA</span>
                   <button class="replay-btn active" id="replay-cam-chase">CHASE</button>
                   <button class="replay-btn" id="replay-cam-orbit">ORBIT</button>
                   <button class="replay-btn" id="replay-cam-cine">CINE</button>
+                  <button class="replay-btn" id="replay-cam-free">FREE</button>
+                  <button class="replay-btn" id="replay-slow-mo">SLOW-MO</button>
                 </div>
 
                 <div class="replay-tool-group">
                   <span class="replay-tool-label">FILTERS</span>
                   <div class="replay-slider-wrap">
                     <span>GRAIN</span>
-                    <input type="range" id="replay-filter-grain" min="0" max="1" value="0" step="0.05" />
+                    <input
+                      type="range"
+                      id="replay-filter-grain"
+                      min="0"
+                      max="1"
+                      value="0"
+                      step="0.05"
+                      aria-label="Film grain"
+                    />
                   </div>
                   <div class="replay-slider-wrap">
                     <span>CONTRAST</span>
-                    <input type="range" id="replay-filter-contrast" min="0.5" max="2" value="1" step="0.1" />
+                    <input
+                      type="range"
+                      id="replay-filter-contrast"
+                      min="0.5"
+                      max="2"
+                      value="1"
+                      step="0.1"
+                      aria-label="Replay contrast"
+                    />
+                  </div>
+                  <div class="replay-slider-wrap">
+                    <span>FOCUS</span>
+                    <input
+                      type="range"
+                      id="replay-filter-focus"
+                      min="0"
+                      max="1"
+                      value="0"
+                      step="0.05"
+                      aria-label="Replay focus"
+                    />
                   </div>
                 </div>
 
@@ -452,7 +632,7 @@
           <!-- ─── Touch Controls ─── -->
           <div class="touch-controls" id="touch-controls">
             <div class="touch-left">
-              <button class="touch-btn touch-left-btn" id="touch-left">
+              <button class="touch-btn touch-left-btn" id="touch-left" aria-label="Steer left">
                 <svg viewBox="0 0 24 24">
                   <polyline
                     points="15,4 7,12 15,20"
@@ -466,7 +646,7 @@
               </button>
             </div>
             <div class="touch-right">
-              <button class="touch-btn touch-right-btn" id="touch-right">
+              <button class="touch-btn touch-right-btn" id="touch-right" aria-label="Steer right">
                 <svg viewBox="0 0 24 24">
                   <polyline
                     points="9,4 17,12 9,20"
